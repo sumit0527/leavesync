@@ -1,0 +1,215 @@
+/* stylelint-disable */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Playfair Display Font */
+@font-face {
+  font-family: 'PlayfairDisplay';
+  src: url('https://resource-static.bj.bcebos.com/fonts/PlayfairDisplay-VariableFont_wght.woff2') format('woff2');
+  font-display: swap;
+}
+
+/* Opulent Theme - Luxury design with gold and dark velvet */
+@layer base {
+  :root {
+    --radius: 0.25rem;
+  }
+
+  /* Light Mode - Warm gold-tinted ivory, never plain white */
+  .light {
+    /* Rich warm ivory background — deeper than plain white for large screens */
+    --background: 43 28% 90%;
+    --foreground: 220 30% 12%;
+    /* Card with visible warmth against background */
+    --card: 43 24% 94%;
+    --card-foreground: 220 30% 12%;
+    /* Popover */
+    --popover: 43 24% 94%;
+    --popover-foreground: 220 30% 12%;
+    /* Rich gold — same soul color as dark mode */
+    --primary: 43 74% 48%;
+    --primary-foreground: 45 30% 98%;
+    /* Secondary with deeper gold warmth */
+    --secondary: 43 22% 86%;
+    --secondary-foreground: 220 30% 12%;
+    /* Muted tones — visible depth */
+    --muted: 43 18% 82%;
+    --muted-foreground: 220 20% 38%;
+    /* Accent — deep charcoal for contrast */
+    --accent: 220 25% 18%;
+    --accent-foreground: 45 30% 96%;
+    /* Status colors */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 45 30% 98%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+    /* Borders — richer gold accent */
+    --border: 43 45% 68%;
+    --input: 43 22% 86%;
+    --ring: 43 74% 48%;
+    /* Chart colors with gold theme */
+    --chart-1: 43 74% 48%;
+    --chart-2: 142 71% 45%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 0 72% 51%;
+    /* Sidebar with warm ivory depth */
+    --sidebar-background: 43 24% 88%;
+    --sidebar-foreground: 220 30% 12%;
+    --sidebar-primary: 43 74% 48%;
+    --sidebar-primary-foreground: 45 30% 98%;
+    --sidebar-accent: 43 20% 84%;
+    --sidebar-accent-foreground: 43 74% 48%;
+    --sidebar-border: 43 45% 68%;
+    --sidebar-ring: 43 74% 48%;
+    /* Gradients — pronounced gold glow at top, fading to warm ivory */
+    --gradient-primary: linear-gradient(135deg, hsl(43 74% 48%) 0%, hsl(38 92% 50%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(43 24% 94%) 0%, hsl(43 24% 90%) 100%);
+    --gradient-background: radial-gradient(ellipse 80% 70% at 50% 0%, hsl(43 40% 96%) 0%, hsl(43 28% 92%) 50%, hsl(43 24% 88%) 100%);
+    /* Shadows with gold glow */
+    --shadow-card: 0 4px 24px rgba(212, 175, 55, 0.18);
+    --shadow-hover: 0 8px 32px rgba(212, 175, 55, 0.28);
+  }
+
+  /* Dark Mode - Deep midnight and gold */
+  .dark {
+    /* Deep midnight background - solemn and ceremonial */
+    --background: 220 30% 8%;
+    --foreground: 45 15% 96%;
+    /* Card with subtle elevation */
+    --card: 220 25% 12%;
+    --card-foreground: 45 15% 96%;
+    /* Popover */
+    --popover: 220 25% 10%;
+    --popover-foreground: 45 15% 96%;
+    /* Champagne gold - soul color for wealth and glory */
+    --primary: 43 74% 52%;
+    --primary-foreground: 220 30% 8%;
+    /* Secondary with subtle gold tint */
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 45 15% 96%;
+    /* Muted tones */
+    --muted: 220 20% 16%;
+    --muted-foreground: 45 10% 70%;
+    /* Accent - pearl white sparingly applied */
+    --accent: 45 20% 92%;
+    --accent-foreground: 220 30% 8%;
+    /* Status colors */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 45 15% 96%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+    /* Borders with gold accent */
+    --border: 43 50% 35%;
+    --input: 220 20% 18%;
+    --ring: 43 74% 52%;
+    /* Chart colors with gold theme */
+    --chart-1: 43 74% 52%;
+    --chart-2: 142 71% 45%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 0 72% 51%;
+    /* Sidebar with dark velvet */
+    --sidebar-background: 220 28% 10%;
+    --sidebar-foreground: 45 15% 96%;
+    --sidebar-primary: 43 74% 52%;
+    --sidebar-primary-foreground: 220 30% 8%;
+    --sidebar-accent: 220 20% 16%;
+    --sidebar-accent-foreground: 43 74% 52%;
+    --sidebar-border: 43 50% 35%;
+    --sidebar-ring: 43 74% 52%;
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(43 74% 52%) 0%, hsl(38 92% 50%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(220 25% 12%) 0%, hsl(220 28% 10%) 100%);
+    --gradient-background: radial-gradient(ellipse at top, hsl(220 30% 12%) 0%, hsl(220 30% 8%) 100%);
+    /* Shadows with gold glow */
+    --shadow-card: 0 4px 24px rgba(212, 175, 55, 0.1);
+    --shadow-hover: 0 8px 32px rgba(212, 175, 55, 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: var(--gradient-background);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-playfair-display;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .gold-border {
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+  }
+
+  .double-gold-border {
+    border: 2px solid hsl(var(--primary));
+    outline: 2px solid hsl(var(--primary) / 0.3);
+    outline-offset: 4px;
+  }
+
+  .font-playfair-display {
+    font-family: 'PlayfairDisplay', serif;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(212, 175, 55, 0.6);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes entrance-pulse-show {
+    0% {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-entrance-pulse-show {
+    animation: entrance-pulse-show 0.6s ease-out;
+  }
+}
