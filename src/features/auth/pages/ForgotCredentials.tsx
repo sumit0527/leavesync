@@ -33,24 +33,22 @@ export default function ForgotCredentials({ role = 'staff' }: ForgotCredentialsP
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, phone, role')
-        .eq('username', username.trim())
-        .eq('role', role)
+        .rpc('verify_user_credentials', {
+          p_username: username.trim(),
+          p_phone: phone.replace(/\s/g, ''),
+          p_role: role,
+        })
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) {
+      const userData = data as { id: string; full_name: string; email: string | null } | null;
+      if (!userData) {
         toast.error('No account found with this username');
         return;
       }
-      if (data.phone?.replace(/\s/g, '') !== phone.replace(/\s/g, '')) {
-        toast.error('Phone number does not match our records');
-        return;
-      }
-      setFoundUser(data);
+      setFoundUser({ id: userData.id, full_name: userData.full_name, email: userData.email });
       setStep('found');
-      toast.success(`Account verified for ${data.full_name}`);
+      toast.success(`Account verified for ${userData.full_name}`);
     } catch (err: any) {
       toast.error(err.message ?? 'Verification failed');
     } finally {
@@ -70,21 +68,16 @@ export default function ForgotCredentials({ role = 'staff' }: ForgotCredentialsP
     }
     setLoading(true);
     try {
-      // Sign in first to get the session
-      const email = `${username.trim()}@miaoda.com`;
-      // Use update via edge function or admin update
-      const { error } = await supabase.functions.invoke('reset-user-password', {
-        body: { userId: foundUser?.id, newPassword }
+      const { data: success, error } = await supabase.rpc('reset_password_by_verified_identity', {
+        p_user_id: foundUser?.id,
+        p_new_password: newPassword,
       });
-      if (error) {
-        // Fallback: direct signIn then update
-        const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({ email, password: 'TEMP_VERIFY_ONLY_XQ8M' });
-        void signInData; void signInError;
-        // Since we can't sign in with old password from here, show admin contact message
-        toast.info('Password reset request submitted. Please contact your administrator to reset your password, or try logging in with your previous password.');
-        setStep('verify');
-        return;
+
+      if (error) throw error;
+      if (!success) {
+        throw new Error('Password reset failed. Please try again.');
       }
+
       toast.success('Password reset successfully! You can now log in with your new password.');
       setStep('verify');
       setUsername('');
@@ -92,7 +85,7 @@ export default function ForgotCredentials({ role = 'staff' }: ForgotCredentialsP
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      toast.error('Unable to reset password automatically. Please contact your administrator.');
+      toast.error(err.message ?? 'Unable to reset password. Please contact your administrator.');
     } finally {
       setLoading(false);
     }
