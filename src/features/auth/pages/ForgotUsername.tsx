@@ -31,11 +31,10 @@ export default function ForgotUsername({ role = 'staff' }: ForgotUsernameProps) 
     setLoading(true);
     try {
       const { data: matches, error } = await supabase
-        .from('profiles')
-        .select('username, full_name')
-        .eq('role', role)
-        .ilike('phone', `%${phone.replace(/\s/g, '')}%`)
-        .limit(1);
+        .rpc('find_username_by_phone', {
+          p_phone: phone.replace(/\s/g, ''),
+          p_role: role,
+        });
 
       if (error) throw error;
 
