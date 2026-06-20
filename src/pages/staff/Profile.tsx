@@ -19,8 +19,9 @@ import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
+import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
+
+
 
 export default function Profile() {
   const { profile, refreshProfile } = useAuth();
@@ -102,139 +103,25 @@ export default function Profile() {
   };
 
   const downloadFullReport = () => {
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 20;
-
-    // Title
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College', pageW / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(13);
-    doc.text('Staff Profile Report', pageW / 2, y, { align: 'center' });
-    y += 6;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')}`, pageW / 2, y, { align: 'center' });
-    y += 12;
-
-    // Personal Information
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Personal Information', 14, y);
-    y += 7;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const infoRows = [
-      ['Full Name', profile?.full_name || 'N/A'],
-      ['Username', `@${profile?.username || 'N/A'}`],
-      ['Email', profile?.email || 'N/A'],
-      ['Phone', profile?.phone || 'N/A'],
-      ['Address', profile?.address || 'N/A'],
-      ['Role', 'Staff Member'],
-    ];
-    infoRows.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${label}:`, 14, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(value, 60, y);
-      y += 6;
+    const wb = generateProfileReport({
+      full_name: profile?.full_name || '',
+      username: profile?.username || '',
+      email: profile?.email || '',
+      phone: profile?.phone || '',
+      address: profile?.address || '',
+      role: profile?.role === 'admin' ? 'Administrator' : 'Staff Member',
+      stats,
+      allocations: allocations.map(a => ({
+        leave_type: a.leave_type?.name || 'N/A',
+        total_allocated: a.total_allocated,
+        used: a.used,
+        remaining: a.remaining,
+      })),
     });
-    y += 4;
-
-    // Leave Statistics
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Leave Statistics', 14, y);
-    y += 7;
-    doc.setFontSize(10);
-    const statRows = [
-      ['Total Applications', String(stats.total)],
-      ['Approved', String(stats.approved)],
-      ['Rejected', String(stats.rejected)],
-      ['Pending', String(stats.pending)],
-    ];
-    statRows.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${label}:`, 14, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(value, 70, y);
-      y += 6;
-    });
-    y += 4;
-
-    // Leave Allocations Table
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Leave Allocations — ${new Date().getFullYear()}`, 14, y);
-    y += 7;
-    doc.setFontSize(9);
-    const allHeaders = ['Leave Type', 'Total', 'Used', 'Remaining'];
-    const allColX = [14, 80, 110, 140];
-    doc.setFont('helvetica', 'bold');
-    allHeaders.forEach((h, i) => doc.text(h, allColX[i], y));
-    y += 5;
-    doc.setDrawColor(180);
-    doc.line(14, y, pageW - 14, y);
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    if (allocations.length === 0) {
-      doc.text('No leave allocations found for this year.', 14, y);
-    } else {
-      allocations.forEach((a) => {
-        [a.leave_type?.name || 'N/A', String(a.total_allocated), String(a.used), String(a.remaining)].forEach((v, i) => {
-          doc.text(v, allColX[i], y);
-        });
-        y += 6;
-      });
-    }
-
-    doc.save(`profile_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    downloadWorkbook(wb, `profile_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
-
-    // Personal Info sheet
-    const infoData = [
-      ['Field', 'Value'],
-      ['Full Name', profile?.full_name || 'N/A'],
-      ['Username', `@${profile?.username || 'N/A'}`],
-      ['Email', profile?.email || 'N/A'],
-      ['Phone', profile?.phone || 'N/A'],
-      ['Address', profile?.address || 'N/A'],
-      ['Role', 'Staff Member'],
-    ];
-    const infoWs = XLSX.utils.aoa_to_sheet(infoData);
-    XLSX.utils.book_append_sheet(wb, infoWs, 'Personal Info');
-
-    // Leave Statistics sheet
-    const statsData = [
-      ['Metric', 'Value'],
-      ['Total Applications', stats.total],
-      ['Approved', stats.approved],
-      ['Rejected', stats.rejected],
-      ['Pending', stats.pending],
-    ];
-    const statsWs = XLSX.utils.aoa_to_sheet(statsData);
-    XLSX.utils.book_append_sheet(wb, statsWs, 'Leave Stats');
-
-    // Leave Allocations sheet
-    const allocData = [
-      ['Leave Type', 'Total Allocated', 'Used', 'Remaining'],
-      ...allocations.map((a) => [
-        a.leave_type?.name || 'N/A',
-        a.total_allocated,
-        a.used,
-        a.remaining,
-      ]),
-    ];
-    const allocWs = XLSX.utils.aoa_to_sheet(allocData);
-    XLSX.utils.book_append_sheet(wb, allocWs, 'Allocations');
-
-    XLSX.writeFile(wb, `profile_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
+  const exportToExcel = downloadFullReport;
 
   return (
     <StaffLayout>
