@@ -1,8 +1,18 @@
 
             import { createClient } from "@supabase/supabase-js";
 
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-            export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+            if (!supabaseUrl || !supabaseAnonKey) {
+              console.error(
+                '[LeaveSync] Missing Supabase env vars. ' +
+                'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel → Project Settings → Environment Variables.'
+              );
+            }
+
+            export const supabase = createClient(
+              supabaseUrl || 'https://placeholder.supabase.co',
+              supabaseAnonKey || 'placeholder'
+            );
             
