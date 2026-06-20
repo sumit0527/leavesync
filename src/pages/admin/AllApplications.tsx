@@ -17,8 +17,8 @@ import { useLeaveTypes } from '@/hooks/use-leave-types';
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, Clock, Download, FileText, Search, ExternalLink, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
+
+import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
 
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
@@ -70,96 +70,31 @@ export default function AllApplications() {
   };
 
   const downloadReport = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 18;
-
-    // Header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College — All Applications Report', pageW / 2, y, { align: 'center' });
-    y += 7;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')} | Total records: ${filteredApplications.length}`, pageW / 2, y, { align: 'center' });
-    y += 8;
-
-    // Table header
-    const headers = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const colWidths = [8, 36, 32, 28, 24, 24, 12, 20, 50, 50];
-    const colX: number[] = [];
-    let xCursor = 10;
-    colWidths.forEach((w) => { colX.push(xCursor); xCursor += w; });
-
-    const drawRow = (row: string[], isHeader: boolean, rowY: number) => {
-      if (isHeader) {
-        doc.setFillColor(30, 20, 10);
-        doc.rect(10, rowY - 4, pageW - 20, 7, 'F');
-        doc.setTextColor(212, 175, 55);
-        doc.setFont('helvetica', 'bold');
-      } else {
-        doc.setTextColor(30, 30, 30);
-        doc.setFont('helvetica', 'normal');
-      }
-      row.forEach((cell, i) => {
-        const maxW = colWidths[i] - 1;
-        const lines = doc.splitTextToSize(String(cell), maxW);
-        doc.text(lines[0], colX[i], rowY);
-      });
-    };
-
-    doc.setFontSize(8);
-    drawRow(headers, true, y);
-    y += 7;
-
-    doc.setDrawColor(200, 175, 100);
-    doc.line(10, y - 1, pageW - 10, y - 1);
-
-    filteredApplications.forEach((app, idx) => {
-      if (y > 185) { doc.addPage(); y = 18; doc.setFontSize(8); drawRow(headers, true, y); y += 7; }
-      const row = [
-        String(idx + 1),
-        app.staff?.full_name || '',
-        app.staff?.department?.name || 'N/A',
-        app.leave_type?.name || 'N/A',
-        format(new Date(app.start_date), 'dd/MM/yy'),
-        format(new Date(app.end_date), 'dd/MM/yy'),
-        String(app.leave_days),
-        app.status,
-        app.reason || '',
-        app.admin_response || 'N/A',
-      ];
-      const isEven = idx % 2 === 0;
-      if (isEven) {
-        doc.setFillColor(250, 248, 240);
-        doc.rect(10, y - 3.5, pageW - 20, 6.5, 'F');
-      }
-      drawRow(row, false, y);
-      y += 7;
-    });
-
-    doc.save(`all_applications_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const parts: string[] = [];
+    if (filter !== 'all') parts.push(filter.charAt(0).toUpperCase() + filter.slice(1));
+    if (filterYear !== 'all') parts.push(filterYear);
+    if (filterDepartment !== 'all') {
+      const dept = departments.find(d => d.id === filterDepartment);
+      if (dept) parts.push(dept.name);
+    }
+    const filterLabel = parts.length > 0 ? parts.join(', ') : 'All Records';
+    const rows = filteredApplications.map((app, idx) => ({
+      serial: idx + 1,
+      staff_name: app.staff?.full_name || 'N/A',
+      department: app.staff?.department?.name || 'N/A',
+      leave_type: app.leave_type?.name || 'N/A',
+      start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
+      end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+      days: app.leave_days,
+      status: app.status,
+      reason: app.reason || '',
+      admin_response: app.admin_response || 'N/A',
+    }));
+    const wb = generateAllApplicationsReport(rows, filterLabel);
+    downloadWorkbook(wb, `all_applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportToExcel = () => {
-    const headers = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const rows = filteredApplications.map((app, idx) => [
-      idx + 1,
-      app.staff?.full_name || '',
-      app.staff?.department?.name || 'N/A',
-      app.leave_type?.name || 'N/A',
-      format(new Date(app.start_date), 'dd/MM/yyyy'),
-      format(new Date(app.end_date), 'dd/MM/yyyy'),
-      app.leave_days,
-      app.status,
-      app.reason || '',
-      app.admin_response || 'N/A',
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'All Applications');
-    XLSX.writeFile(wb, `all_applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
+  const exportToExcel = downloadReport;
 
   return (
     <AdminLayout>
