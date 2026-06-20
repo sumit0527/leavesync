@@ -16,8 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
+import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
 
 interface DepartmentStats {
   department: string;
@@ -167,114 +166,29 @@ export default function Analytics() {
   }));
 
   const downloadAnalytics = () => {
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 20;
-
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College', pageW / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(14);
-    doc.text(`Leave Management Analytics — ${selectedYear}`, pageW / 2, y, { align: 'center' });
-    y += 6;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')}`, pageW / 2, y, { align: 'center' });
-    y += 12;
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Overall Statistics', 14, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    [['Metric', 'Value'], ['Total Applications', String(stats.total)], ['Approved', String(stats.approved)], ['Rejected', String(stats.rejected)], ['Pending', String(stats.pending)]].forEach((row, i) => {
-      doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
-      doc.text(row[0], 14, y); doc.text(row[1], 80, y); y += 6;
-    });
-    y += 6;
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Department-wise Breakdown', 14, y);
-    y += 6;
-    doc.setFontSize(10);
-    const deptHeaders = ['Department', 'Total', 'Approved', 'Rejected', 'Pending', 'Approval%'];
-    const colX = [14, 70, 95, 118, 143, 165];
-    doc.setFont('helvetica', 'bold');
-    deptHeaders.forEach((h, i) => doc.text(h, colX[i], y));
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setDrawColor(200);
-    doc.line(14, y, pageW - 14, y);
-    y += 4;
-    departmentStats.forEach((d) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      const pct = d.total > 0 ? ((d.approved / d.total) * 100).toFixed(1) + '%' : '0%';
-      [d.department, String(d.total), String(d.approved), String(d.rejected), String(d.pending), pct].forEach((v, i) => doc.text(v, colX[i], y));
-      y += 6;
-    });
-    y += 6;
-
-    if (y > 240) { doc.addPage(); y = 20; }
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Leave Type Distribution', 14, y);
-    y += 6;
-    doc.setFontSize(10);
-    const ltHeaders = ['Leave Type', 'Count', 'Percentage'];
-    const ltX = [14, 90, 130];
-    doc.setFont('helvetica', 'bold');
-    ltHeaders.forEach((h, i) => doc.text(h, ltX[i], y));
-    y += 5;
-    doc.line(14, y, pageW - 14, y);
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    leaveTypeStats.forEach((t) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      [t.leave_type, String(t.count), `${t.percentage}%`].forEach((v, i) => doc.text(v, ltX[i], y));
-      y += 6;
-    });
-
-    doc.save(`analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const deptRows = departmentStats.map(d => ({
+      department: d.department,
+      total: d.total,
+      approved: d.approved,
+      rejected: d.rejected,
+      pending: d.pending,
+      approval_pct: d.total > 0 ? parseFloat(((d.approved / d.total) * 100).toFixed(1)) : 0,
+    }));
+    const ltRows = leaveTypeStats.map(t => ({
+      leave_type: t.leave_type,
+      count: t.count,
+      percentage: t.percentage,
+    }));
+    const wb = generateAnalyticsReport(
+      { total: stats.total, approved: stats.approved, rejected: stats.rejected, pending: stats.pending },
+      deptRows,
+      ltRows,
+      selectedYear,
+    );
+    downloadWorkbook(wb, `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
-
-    // Overall Stats sheet
-    const statsData = [
-      ['Metric', 'Value'],
-      ['Total Applications', stats.total],
-      ['Approved', stats.approved],
-      ['Rejected', stats.rejected],
-      ['Pending', stats.pending],
-    ];
-    const statsWs = XLSX.utils.aoa_to_sheet(statsData);
-    XLSX.utils.book_append_sheet(wb, statsWs, 'Overall Stats');
-
-    // Department Breakdown sheet
-    const deptData = [
-      ['Department', 'Total', 'Approved', 'Rejected', 'Pending', 'Approval %'],
-      ...departmentStats.map((d) => {
-        const pct = d.total > 0 ? ((d.approved / d.total) * 100).toFixed(1) + '%' : '0%';
-        return [d.department, d.total, d.approved, d.rejected, d.pending, pct];
-      }),
-    ];
-    const deptWs = XLSX.utils.aoa_to_sheet(deptData);
-    XLSX.utils.book_append_sheet(wb, deptWs, 'Departments');
-
-    // Leave Type Distribution sheet
-    const ltData = [
-      ['Leave Type', 'Count', 'Percentage'],
-      ...leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]),
-    ];
-    const ltWs = XLSX.utils.aoa_to_sheet(ltData);
-    XLSX.utils.book_append_sheet(wb, ltWs, 'Leave Types');
-
-    XLSX.writeFile(wb, `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
+  const exportToExcel = downloadAnalytics;
 
   return (
     <AdminLayout>
