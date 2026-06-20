@@ -14,8 +14,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
-import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
+
+import { generateLeaveHistoryReport, downloadWorkbook } from '@/lib/excel-report';
 
 export default function LeaveHistory() {
   const { profile } = useAuth();
@@ -39,79 +39,23 @@ export default function LeaveHistory() {
   };
 
   const downloadReport = () => {
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 20;
-
-    // Title
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College — Leave History Report', pageW / 2, y, { align: 'center' });
-    y += 7;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')} | Records: ${filteredApplications.length}`, pageW / 2, y, { align: 'center' });
-    y += 10;
-
-    // Table header
-    const headers = ['#', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const colX = [14, 24, 62, 88, 114, 126, 148, 186];
-    const colW = [10, 36, 24, 24, 12, 20, 36, 36];
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setFillColor(30, 20, 10);
-    doc.rect(14, y - 4, pageW - 28, 7, 'F');
-    doc.setTextColor(212, 175, 55);
-    headers.forEach((h, i) => doc.text(h, colX[i], y));
-    y += 7;
-    doc.setTextColor(30, 30, 30);
-
-    filteredApplications.forEach((app, idx) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      const isEven = idx % 2 === 0;
-      if (isEven) {
-        doc.setFillColor(250, 248, 240);
-        doc.rect(14, y - 3.5, pageW - 28, 6.5, 'F');
-      }
-      doc.setFont('helvetica', 'normal');
-      const row = [
-        String(idx + 1),
-        app.leave_type?.name || 'N/A',
-        format(new Date(app.start_date), 'dd/MM/yy'),
-        format(new Date(app.end_date), 'dd/MM/yy'),
-        String(app.leave_days),
-        app.status,
-        app.reason || '',
-        app.admin_response || 'N/A',
-      ];
-      row.forEach((cell, i) => {
-        const lines = doc.splitTextToSize(cell, colW[i] - 1);
-        doc.text(lines[0], colX[i], y);
-      });
-      y += 7;
-    });
-
-    doc.save(`leave_history_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const filterLabel = filter === 'all' ? 'All Status' : filter.charAt(0).toUpperCase() + filter.slice(1);
+    const rows = filteredApplications.map((app, idx) => ({
+      serial: idx + 1,
+      leave_type: app.leave_type?.name || 'N/A',
+      start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
+      end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+      days: app.leave_days,
+      status: app.status,
+      reason: app.reason || '',
+      admin_response: app.admin_response || 'N/A',
+    }));
+    const staffName = profile?.full_name || 'Staff';
+    const wb = generateLeaveHistoryReport(rows, staffName, filterLabel);
+    downloadWorkbook(wb, `leave_history_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportToExcel = () => {
-    const headers = ['#', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const rows = filteredApplications.map((app, idx) => [
-      idx + 1,
-      app.leave_type?.name || 'N/A',
-      format(new Date(app.start_date), 'dd/MM/yyyy'),
-      format(new Date(app.end_date), 'dd/MM/yyyy'),
-      app.leave_days,
-      app.status,
-      app.reason || '',
-      app.admin_response || 'N/A',
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Leave History');
-    XLSX.writeFile(wb, `leave_history_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
+  const exportToExcel = downloadReport;
 
   return (
     <StaffLayout>
