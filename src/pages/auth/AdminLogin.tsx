@@ -58,8 +58,10 @@ export default function AdminLogin() {
     setFkLoading(true);
     try {
       // Sign in temporarily to verify credentials
-      const email = `${fkUsername}@miaoda.com`;
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: fkPassword });
+      const authEmail = fkUsername.trim().toLowerCase().includes('@')
+        ? fkUsername.trim().toLowerCase()
+        : `${fkUsername.trim().toLowerCase()}@miaoda.com`;
+      const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: fkPassword });
       if (error) throw new Error('Invalid username or password');
 
       // Verify it's actually an admin account
@@ -107,8 +109,10 @@ export default function AdminLogin() {
     setFkLoading(true);
     try {
       // Re-authenticate to get a valid session for the RLS-protected update
-      const email = `${fkUsername}@miaoda.com`;
-      await supabase.auth.signInWithPassword({ email, password: fkPassword });
+      const authEmail = fkUsername.trim().toLowerCase().includes('@')
+        ? fkUsername.trim().toLowerCase()
+        : `${fkUsername.trim().toLowerCase()}@miaoda.com`;
+      await supabase.auth.signInWithPassword({ email: authEmail, password: fkPassword });
 
       const { error } = await supabase
         .from('admin_settings')
