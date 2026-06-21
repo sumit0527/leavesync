@@ -31,6 +31,39 @@ async function getAdminSecretKey(): Promise<string> {
   return data?.value ?? 'GDS2026ADMIN';
 }
 
+function cleanUsername(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function toInternalAuthEmail(username: string): string {
+  return `${cleanUsername(username)}@miaoda.com`;
+}
+
+async function resolveLoginEmail(loginId: string): Promise<string> {
+  const cleaned = cleanUsername(loginId);
+
+  // LeaveSync uses Supabase Auth email/password under the hood.
+  // For normal usernames, the auth email is username@miaoda.com.
+  if (!cleaned.includes('@')) {
+    return toInternalAuthEmail(cleaned);
+  }
+
+  // If the user types their real registered email, find the linked username first.
+  const { data: profileByRealEmail } = await supabase
+    .from('profiles')
+    .select('username')
+    .ilike('email', cleaned)
+    .maybeSingle();
+
+  if (profileByRealEmail?.username) {
+    return toInternalAuthEmail(profileByRealEmail.username);
+  }
+
+  // Fallback: support accounts that may have been created directly in Supabase Auth
+  // using a real email address.
+  return cleaned;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -77,37 +110,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithUsername = async (username: string, password: string, adminSecret?: string) => {
     try {
+      const loginId = cleanUsername(username);
+
       if (adminSecret) {
         const validKey = await getAdminSecretKey();
-        if (adminSecret !== validKey) {
+        if (adminSecret.trim() !== validKey) {
           throw new Error('Invalid admin secret key');
         }
       }
 
-      const email = `${username}@miaoda.com`;
+      const email = await resolveLoginEmail(loginId);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.toLowerCase().includes('invalid login credentials')) {
+          throw new Error('Invalid username/email or password. Use the same username you used while registering.');
+        }
+        throw error;
+      }
 
       if (data.user) {
         const userProfile = await getProfile(data.user.id);
-        
-        if (userProfile?.approval_status === 'pending') {
+
+        if (!userProfile) {
+          await supabase.auth.signOut();
+          throw new Error('Login succeeded but profile was not found. Please contact admin.');
+        }
+
+        if (userProfile.approval_status === 'pending') {
           await supabase.auth.signOut();
           throw new Error('Your account is pending approval by admin');
         }
         
-        if (userProfile?.approval_status === 'rejected') {
+        if (userProfile.approval_status === 'rejected') {
           await supabase.auth.signOut();
           throw new Error('Your account has been rejected. Please contact administration');
         }
 
-        if (adminSecret && userProfile?.role !== 'admin') {
+        if (adminSecret && userProfile.role !== 'admin') {
           await supabase.auth.signOut();
           throw new Error('This account is not an admin account');
+        }
+
+        if (!adminSecret && userProfile.role !== 'staff') {
+          await supabase.auth.signOut();
+          throw new Error('This account is not a staff account. Please use Admin Login.');
         }
       }
 
@@ -119,24 +169,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string) => {
     try {
+      const cleanedUsername = cleanUsername(username);
+      const cleanedEmail = email.trim().toLowerCase();
+      const cleanedPhone = phone.replace(/\s/g, '');
+
       if (adminSecret) {
         const validKey = await getAdminSecretKey();
-        if (adminSecret !== validKey) {
+        if (adminSecret.trim() !== validKey) {
           throw new Error('Invalid admin secret key');
         }
       }
 
-      const emailAddress = `${username}@miaoda.com`;
+      const { data: existingUsername } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanedUsername)
+        .maybeSingle();
+
+      if (existingUsername) {
+        throw new Error('This username is already taken. Please choose another username.');
+      }
+
+      const emailAddress = toInternalAuthEmail(cleanedUsername);
       const { error } = await supabase.auth.signUp({
         email: emailAddress,
         password,
         options: {
           data: {
-            username,
-            full_name: fullName,
-            phone,
-            email,
-            address,
+            username: cleanedUsername,
+            full_name: fullName.trim(),
+            phone: cleanedPhone,
+            email: cleanedEmail,
+            address: address.trim(),
             department_id: departmentId,
             role: adminSecret ? 'admin' : 'staff'
           }
