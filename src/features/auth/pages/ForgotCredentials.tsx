@@ -68,14 +68,20 @@ export default function ForgotCredentials({ role = 'staff' }: ForgotCredentialsP
     }
     setLoading(true);
     try {
+      if (!foundUser) {
+        throw new Error('Please verify your identity first.');
+      }
+
       const { data: success, error } = await supabase.rpc('reset_password_by_verified_identity', {
-        p_user_id: foundUser?.id,
+        p_username: username.trim().toLowerCase(),
+        p_phone: phone.replace(/\s/g, ''),
+        p_role: role,
         p_new_password: newPassword,
       });
 
       if (error) throw error;
       if (!success) {
-        throw new Error('Password reset failed. Please try again.');
+        throw new Error('Password reset failed. Please verify your username and phone number again.');
       }
 
       toast.success('Password reset successfully! You can now log in with your new password.');
