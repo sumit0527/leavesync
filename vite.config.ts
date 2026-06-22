@@ -20,7 +20,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["xlsx"],
+    include: ["xlsx", "jspdf"],
   },
   build: {
     commonjsOptions: {
