@@ -34,17 +34,17 @@ export default function StaffDashboard() {
           <p className="mt-1 text-sm text-muted-foreground">Manage your leave applications and track your leave balance</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 max-w-2xl">
           {dashboardCards.map((item) => {
             const Icon = item.icon;
             return (
               <Card key={item.title} className={compactCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1.5">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2.5 pb-1">
                   <CardTitle className="text-xs font-medium leading-tight sm:text-sm">{item.title}</CardTitle>
-                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <Icon className={`h-3.5 w-3.5 ${item.color}`} />
                 </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className={`text-xl font-bold sm:text-2xl ${item.color}`}>{item.value}</div>
+                <CardContent className="p-2.5 pt-0">
+                  <div className={`text-lg font-bold sm:text-xl ${item.color}`}>{item.value}</div>
                   <p className="text-[11px] text-muted-foreground sm:text-xs">{item.note}</p>
                 </CardContent>
               </Card>
@@ -58,11 +58,11 @@ export default function StaffDashboard() {
             <CardDescription className="text-xs">Use these shortcuts to finish common work faster</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 max-w-2xl">
               {quickActions.map((action) => {
                 const Icon = action.icon;
                 return (
-                  <Button key={action.to} variant={action.variant} size="sm" className="h-10 justify-start gap-2 px-3 text-xs sm:text-sm" asChild>
+                  <Button key={action.to} variant={action.variant} size="sm" className="h-9 justify-start gap-2 px-3 text-xs sm:text-sm" asChild>
                     <Link to={action.to}>
                       <Icon className="h-4 w-4 shrink-0" />
                       <span className="truncate">{action.label}</span>
