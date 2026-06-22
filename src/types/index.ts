@@ -8,6 +8,7 @@ export interface Option {
 export type UserRole = 'staff' | 'admin';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type EmploymentStatus = 'active' | 'past';
 
 export interface Department {
   id: string;
@@ -53,6 +54,9 @@ export interface Profile {
   approved_by: string | null;
   approved_at: string | null;
   leave_balance: number;
+  employment_status?: EmploymentStatus;
+  exited_at?: string | null;
+  exited_by?: string | null;
   created_at: string;
   updated_at: string;
   department?: Department;
