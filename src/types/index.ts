@@ -9,6 +9,8 @@ export type UserRole = 'staff' | 'admin';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type EmploymentStatus = 'active' | 'past';
+export type LeaveDuration = 'full_day' | 'half_day';
+export type HalfDayPeriod = 'first_half' | 'second_half';
 
 export interface Department {
   id: string;
@@ -69,6 +71,8 @@ export interface LeaveApplication {
   start_date: string;
   end_date: string;
   leave_days: number;
+  leave_duration?: LeaveDuration | null;
+  half_day_period?: HalfDayPeriod | null;
   reason: string;
   document_url: string | null;
   status: LeaveStatus;
