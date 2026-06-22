@@ -12,6 +12,7 @@ import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { jsPDF } from 'jspdf';
 import { Badge } from '@/components/ui/badge';
 import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
 
