@@ -4,14 +4,24 @@ import StaffLayout from '@/components/layouts/StaffLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
+import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { useHolidays } from '@/hooks/use-holidays';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday, isSameMonth } from 'date-fns';
-import { ChevronLeft, ChevronRight, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Info, CalendarCheck2 } from 'lucide-react';
+
+const formatDuration = (app: any) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
 
 export default function LeaveCalendar() {
   const { profile } = useAuth();
   const { applications } = useLeaveApplications(profile?.id);
+  const { allocations } = useLeaveAllocations(profile?.id);
   const { holidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -63,7 +73,6 @@ export default function LeaveCalendar() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Calendar */}
           <Card className="md:col-span-2">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -75,13 +84,11 @@ export default function LeaveCalendar() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Day headers */}
               <div className="mb-2 grid grid-cols-7">
                 {weekDays.map(d => (
                   <div key={d} className="py-1 text-center text-xs font-semibold text-muted-foreground">{d}</div>
                 ))}
               </div>
-              {/* Day cells */}
               <div className="grid grid-cols-7 gap-0.5">
                 {Array.from({ length: startDow }).map((_, i) => <div key={`e-${i}`} />)}
                 {daysInMonth.map(day => {
@@ -109,7 +116,6 @@ export default function LeaveCalendar() {
                 })}
               </div>
 
-              {/* Legend */}
               <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded bg-primary/20 ring-1 ring-primary/40" />
@@ -127,9 +133,7 @@ export default function LeaveCalendar() {
             </CardContent>
           </Card>
 
-          {/* Sidebar */}
           <div className="space-y-4">
-            {/* Selected date */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">
@@ -153,7 +157,10 @@ export default function LeaveCalendar() {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(selectedLeave.start_date + 'T00:00:00'), 'dd MMM')} – {format(new Date(selectedLeave.end_date + 'T00:00:00'), 'dd MMM yyyy')}
                         </p>
-                        <Badge variant="secondary" className="text-[10px]">{selectedLeave.leave_type?.name}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className="text-[10px]">{selectedLeave.leave_type?.name}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{formatDuration(selectedLeave)}</Badge>
+                        </div>
                       </div>
                     ) : !selectedHoliday ? (
                       <p className="text-xs text-muted-foreground">No leave or holiday</p>
@@ -163,7 +170,6 @@ export default function LeaveCalendar() {
               </CardContent>
             </Card>
 
-            {/* Stats */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">My Leave Summary</CardTitle>
@@ -180,7 +186,47 @@ export default function LeaveCalendar() {
               </CardContent>
             </Card>
 
-            {/* Upcoming Holidays */}
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <Card className="cursor-help border-primary/30 bg-primary/5 transition hover:bg-primary/10">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                      <CalendarCheck2 className="h-4 w-4 text-primary" />
+                      Leave Type Balance Overview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Hover to view total, used and remaining leaves</span>
+                    <Info className="h-4 w-4" />
+                  </CardContent>
+                </Card>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Leave Balance Details</p>
+                  {allocations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No leave allocation found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {allocations.map((allocation) => (
+                        <div key={allocation.id} className="rounded-md border border-border p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-sm font-medium">{allocation.leave_type?.name ?? 'Leave Type'}</p>
+                            <Badge variant="secondary" className="shrink-0">{allocation.remaining} left</Badge>
+                          </div>
+                          <div className="mt-1 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                            <span>Total: {allocation.total_allocated}</span>
+                            <span>Used: {allocation.used}</span>
+                            <span>Remain: {allocation.remaining}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">Upcoming Holidays</CardTitle>
