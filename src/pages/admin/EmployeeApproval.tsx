@@ -6,31 +6,37 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Loader2, Users } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Users, UserX, RotateCcw } from 'lucide-react';
 import type { Profile } from '@/types';
 
+type EmployeeRecord = Profile & {
+  employment_status?: 'active' | 'past';
+  exited_at?: string | null;
+  exited_by?: string | null;
+};
+
 export default function EmployeeApproval() {
-  const [employees, setEmployees] = useState<Profile[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
   const { profile } = useAuth();
 
   useEffect(() => {
-    fetchPendingEmployees();
+    fetchEmployees();
   }, []);
 
-  const fetchPendingEmployees = async () => {
+  const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*, department:departments(*)')
         .eq('role', 'staff')
         .order('created_at', { ascending: false });
 
-      if (data) {
-        setEmployees(data as unknown as Profile[]);
-      }
+      if (error) throw error;
+      if (data) setEmployees(data as unknown as EmployeeRecord[]);
     } catch (err) {
       console.error('Failed to fetch employees:', err);
       toast.error('Failed to load employees');
@@ -48,29 +54,27 @@ export default function EmployeeApproval() {
         .from('profiles')
         .update({
           approval_status: 'approved',
+          employment_status: 'active',
           approved_by: profile.id,
-          approved_at: new Date().toISOString()
+          approved_at: new Date().toISOString(),
         })
         .eq('id', employeeId);
 
       if (updateError) throw updateError;
 
       const { error: allocError } = await supabase.rpc('initialize_staff_leave_allocations', {
-        staff_id_param: employeeId
+        staff_id_param: employeeId,
       });
 
-      if (allocError) {
-        console.error('Failed to initialize leave allocations:', allocError);
-      }
+      if (allocError) console.error('Failed to initialize leave allocations:', allocError);
 
       await supabase.from('notifications').insert({
         user_id: employeeId,
         title: 'Account Approved',
         message: `Congratulations ${employeeName}! Your account has been approved. You can now login and access the leave management system.`,
-        type: 'approval'
+        type: 'approval',
       });
 
-      // Send email to staff
       const employee = employees.find(e => e.id === employeeId);
       if (employee?.email) {
         supabase.functions.invoke('send-account-notification', {
@@ -84,7 +88,7 @@ export default function EmployeeApproval() {
       }
 
       toast.success('Employee approved successfully');
-      fetchPendingEmployees();
+      fetchEmployees();
     } catch (err) {
       console.error('Failed to approve employee:', err);
       toast.error('Failed to approve employee');
@@ -103,7 +107,7 @@ export default function EmployeeApproval() {
         .update({
           approval_status: 'rejected',
           approved_by: profile.id,
-          approved_at: new Date().toISOString()
+          approved_at: new Date().toISOString(),
         })
         .eq('id', employeeId);
 
@@ -113,10 +117,9 @@ export default function EmployeeApproval() {
         user_id: employeeId,
         title: 'Account Rejected',
         message: `Dear ${employeeName}, your account registration has been rejected. Please contact the administration office for more information.`,
-        type: 'rejection'
+        type: 'rejection',
       });
 
-      // Send email to staff
       const employee = employees.find(e => e.id === employeeId);
       if (employee?.email) {
         supabase.functions.invoke('send-account-notification', {
@@ -130,7 +133,7 @@ export default function EmployeeApproval() {
       }
 
       toast.success('Employee rejected');
-      fetchPendingEmployees();
+      fetchEmployees();
     } catch (err) {
       console.error('Failed to reject employee:', err);
       toast.error('Failed to reject employee');
@@ -139,7 +142,66 @@ export default function EmployeeApproval() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleMoveToPast = async (employee: EmployeeRecord) => {
+    if (!profile?.id) return;
+    if (!window.confirm(`Move ${employee.full_name} to Past Employees? Their old leave records will stay saved.`)) return;
+
+    setProcessingId(employee.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          employment_status: 'past',
+          approval_status: 'rejected',
+          exited_at: new Date().toISOString(),
+          exited_by: profile.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', employee.id);
+
+      if (error) throw error;
+      toast.success('Employee moved to Past Employees');
+      fetchEmployees();
+    } catch (err) {
+      console.error('Failed to move employee:', err);
+      toast.error('Failed to move employee');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRestoreEmployee = async (employee: EmployeeRecord) => {
+    if (!profile?.id) return;
+    if (!window.confirm(`Restore ${employee.full_name} as current employee?`)) return;
+
+    setProcessingId(employee.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          employment_status: 'active',
+          approval_status: 'approved',
+          exited_at: null,
+          exited_by: null,
+          approved_by: profile.id,
+          approved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', employee.id);
+
+      if (error) throw error;
+      toast.success('Employee restored');
+      fetchEmployees();
+    } catch (err) {
+      console.error('Failed to restore employee:', err);
+      toast.error('Failed to restore employee');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const getStatusBadge = (status: string, employmentStatus?: string) => {
+    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">Past Employee</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600">Approved</Badge>;
@@ -150,23 +212,26 @@ export default function EmployeeApproval() {
     }
   };
 
-  const pendingCount = employees.filter(e => e.approval_status === 'pending').length;
+  const currentEmployees = employees.filter(e => (e.employment_status ?? 'active') !== 'past');
+  const pastEmployees = employees.filter(e => e.employment_status === 'past');
+  const visibleEmployees = activeTab === 'current' ? currentEmployees : pastEmployees;
+  const pendingCount = currentEmployees.filter(e => e.approval_status === 'pending').length;
 
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Employee Management</h1>
-          <p className="text-muted-foreground mt-2">Review and approve staff registrations</p>
+          <p className="text-muted-foreground mt-2">Review staff registrations, manage current staff, and keep past employee records safely</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+              <CardTitle className="text-sm font-medium">Current Employees</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employees.length}</div>
+              <div className="text-2xl font-bold">{currentEmployees.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -183,28 +248,48 @@ export default function EmployeeApproval() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {employees.filter(e => e.approval_status === 'approved').length}
+                {currentEmployees.filter(e => e.approval_status === 'approved').length}
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Past Employees</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-600">{pastEmployees.length}</div>
             </CardContent>
           </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="font-playfair-display flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              All Employees
-            </CardTitle>
-            <CardDescription>Manage employee accounts and approval status</CardDescription>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="font-playfair-display flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Employees
+                </CardTitle>
+                <CardDescription>Use Past Employees for staff who left college without deleting history</CardDescription>
+              </div>
+              <div className="flex rounded-md border border-border p-1">
+                <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
+                  Current Employees
+                </Button>
+                <Button size="sm" variant={activeTab === 'past' ? 'default' : 'ghost'} onClick={() => setActiveTab('past')}>
+                  Past Employees
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : employees.length === 0 ? (
+            ) : visibleEmployees.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No employees found
+                {activeTab === 'current' ? 'No current employees found' : 'No past employees found'}
               </div>
             ) : (
               <div className="w-full min-w-0 overflow-x-auto">
@@ -216,19 +301,40 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
                       <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
+                      {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
                       <th className="text-left p-3 whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {employees.map((employee) => (
+                    {visibleEmployees.map((employee) => (
                       <tr key={employee.id} className="border-b hover:bg-muted/50">
-                        <td className="p-3 whitespace-nowrap">{employee.full_name}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          <div>
+                            <p className="font-medium">{employee.full_name}</p>
+                            <p className="text-xs text-muted-foreground">@{employee.username}</p>
+                          </div>
+                        </td>
                         <td className="p-3 whitespace-nowrap">{employee.email || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.phone || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.department?.name || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{getStatusBadge(employee.approval_status)}</td>
+                        <td className="p-3 whitespace-nowrap">{getStatusBadge(employee.approval_status, employee.employment_status)}</td>
+                        {activeTab === 'past' && (
+                          <td className="p-3 whitespace-nowrap">
+                            {employee.exited_at ? new Date(employee.exited_at).toLocaleDateString() : '-'}
+                          </td>
+                        )}
                         <td className="p-3 whitespace-nowrap">
-                          {employee.approval_status === 'pending' ? (
+                          {activeTab === 'past' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRestoreEmployee(employee)}
+                              disabled={processingId === employee.id}
+                            >
+                              {processingId === employee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                              Restore
+                            </Button>
+                          ) : employee.approval_status === 'pending' ? (
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
@@ -255,7 +361,15 @@ export default function EmployeeApproval() {
                               </Button>
                             </div>
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleMoveToPast(employee)}
+                              disabled={processingId === employee.id}
+                            >
+                              {processingId === employee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4 mr-1" />}
+                              Move to Past
+                            </Button>
                           )}
                         </td>
                       </tr>
