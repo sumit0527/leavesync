@@ -15,6 +15,7 @@ import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useDepartments } from '@/hooks/use-departments';
 import { useLeaveTypes } from '@/hooks/use-leave-types';
 import { format } from 'date-fns';
+import { jsPDF } from 'jspdf';
 import { CheckCircle, XCircle, Clock, Download, FileText, Search, ExternalLink, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -69,7 +70,7 @@ export default function AllApplications() {
     }
   };
 
-  const downloadReport = () => {
+  const getFilterLabel = () => {
     const parts: string[] = [];
     if (filter !== 'all') parts.push(filter.charAt(0).toUpperCase() + filter.slice(1));
     if (filterYear !== 'all') parts.push(filterYear);
@@ -77,24 +78,127 @@ export default function AllApplications() {
       const dept = departments.find(d => d.id === filterDepartment);
       if (dept) parts.push(dept.name);
     }
-    const filterLabel = parts.length > 0 ? parts.join(', ') : 'All Records';
-    const rows = filteredApplications.map((app, idx) => ({
-      serial: idx + 1,
-      staff_name: app.staff?.full_name || 'N/A',
-      department: app.staff?.department?.name || 'N/A',
-      leave_type: app.leave_type?.name || 'N/A',
-      start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
-      end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
-      days: app.leave_days,
-      status: app.status,
-      reason: app.reason || '',
-      admin_response: app.admin_response || 'N/A',
-    }));
-    const wb = generateAllApplicationsReport(rows, filterLabel);
+    if (filterLeaveType !== 'all') {
+      const type = leaveTypes.find(t => t.id === filterLeaveType);
+      if (type) parts.push(type.name);
+    }
+    if (startDate || endDate) parts.push(`${startDate || 'Start'} to ${endDate || 'End'}`);
+    return parts.length > 0 ? parts.join(', ') : 'All Records';
+  };
+
+  const getReportRows = () => filteredApplications.map((app, idx) => ({
+    serial: idx + 1,
+    staff_name: app.staff?.full_name || 'N/A',
+    department: app.staff?.department?.name || 'N/A',
+    leave_type: app.leave_type?.name || 'N/A',
+    start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
+    end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+    days: app.leave_days,
+    status: app.status,
+    reason: app.reason || '',
+    admin_response: app.admin_response || 'N/A',
+  }));
+
+  const exportToExcel = () => {
+    const wb = generateAllApplicationsReport(getReportRows(), getFilterLabel());
     downloadWorkbook(wb, `all_applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportToExcel = downloadReport;
+  const exportToPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const rows = getReportRows();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 32;
+    let y = 36;
+
+    const drawHeader = () => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('LeaveSync - All Leave Applications', margin, y);
+      y += 18;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Filter: ${getFilterLabel()}`, margin, y);
+      doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 150, y);
+      y += 20;
+      doc.setDrawColor(180);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 16;
+    };
+
+    const drawTableHeader = () => {
+      doc.setFillColor(44, 31, 8);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      const widths = [28, 100, 90, 88, 62, 62, 35, 58, 155, 140];
+      const headers = ['#', 'Staff', 'Department', 'Leave Type', 'Start', 'End', 'Days', 'Status', 'Reason', 'Admin Response'];
+      let x = margin;
+      headers.forEach((h, i) => {
+        doc.rect(x, y, widths[i], 20, 'F');
+        doc.text(h, x + 4, y + 13);
+        x += widths[i];
+      });
+      y += 20;
+      doc.setTextColor(0, 0, 0);
+    };
+
+    const widths = [28, 100, 90, 88, 62, 62, 35, 58, 155, 140];
+    drawHeader();
+    drawTableHeader();
+
+    if (rows.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('No records found for selected filters.', margin, y + 18);
+    } else {
+      rows.forEach((row, idx) => {
+        if (y > pageHeight - 58) {
+          doc.addPage();
+          y = 36;
+          drawHeader();
+          drawTableHeader();
+        }
+
+        const values = [
+          row.serial,
+          row.staff_name,
+          row.department,
+          row.leave_type,
+          row.start_date,
+          row.end_date,
+          row.days,
+          row.status.charAt(0).toUpperCase() + row.status.slice(1),
+          row.reason,
+          row.admin_response,
+        ];
+        const rowHeight = 28;
+        let x = margin;
+        doc.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255);
+        doc.rect(margin, y, pageWidth - (margin * 2), rowHeight, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        values.forEach((value, i) => {
+          const text = String(value ?? '');
+          const lines = doc.splitTextToSize(text, widths[i] - 8).slice(0, 2);
+          doc.text(lines, x + 4, y + 10);
+          x += widths[i];
+        });
+        y += rowHeight;
+      });
+    }
+
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 60, pageHeight - 20);
+    }
+
+    doc.save(`all_applications_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
 
   return (
     <AdminLayout>
@@ -135,7 +239,7 @@ export default function AllApplications() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={downloadReport}>
+                <DropdownMenuItem onClick={exportToPDF}>
                   <FileText className="mr-2 h-4 w-4" />
                   Download as PDF
                 </DropdownMenuItem>
@@ -261,7 +365,7 @@ export default function AllApplications() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={downloadReport}>
+              <DropdownMenuItem onClick={exportToPDF}>
                 <FileText className="mr-2 h-4 w-4" />
                 Download as PDF
               </DropdownMenuItem>
