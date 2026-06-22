@@ -25,7 +25,7 @@ interface StaffLayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/staff/dashboard', icon: LayoutDashboard },
   { name: 'Apply Leave', href: '/staff/apply-leave', icon: FileText },
-  { name: 'Leave History', href: '/staff/history', icon: History },
+  { name: 'Leave History', href: '/staff/leave-history', icon: History },
   { name: 'Leave Calendar', href: '/staff/calendar', icon: Calendar },
   { name: 'Notifications', href: '/staff/notifications', icon: Bell },
   { name: 'Profile', href: '/staff/profile', icon: User },
