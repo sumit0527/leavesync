@@ -5,10 +5,25 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { format } from 'date-fns';
+import { jsPDF } from 'jspdf';
 import { CheckCircle, XCircle, Clock, Download, FileText } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
-import { jsPDF } from 'jspdf';
+
+import { generateLeaveHistoryReport, downloadWorkbook } from '@/lib/excel-report';
+
+const formatLeaveDuration = (app: any) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
 
 export default function LeaveHistory() {
   const { profile } = useAuth();
@@ -32,61 +47,74 @@ export default function LeaveHistory() {
   };
 
   const downloadReport = () => {
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 20;
+    const filterLabel = filter === 'all' ? 'All Status' : filter.charAt(0).toUpperCase() + filter.slice(1);
+    const rows = filteredApplications.map((app, idx) => ({
+      serial: idx + 1,
+      leave_type: app.leave_type?.name || 'N/A',
+      start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
+      end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+      duration: formatLeaveDuration(app),
+      days: app.leave_days,
+      status: app.status,
+      reason: app.reason || '',
+      admin_response: app.admin_response || 'N/A',
+    }));
+    const staffName = profile?.full_name || 'Staff';
+    const wb = generateLeaveHistoryReport(rows, staffName, filterLabel);
+    downloadWorkbook(wb, `leave_history_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
 
-    // Title
-    doc.setFontSize(16);
+  const exportToPDF = () => {
+    const filterLabel = filter === 'all' ? 'All Status' : filter.charAt(0).toUpperCase() + filter.slice(1);
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const margin = 36;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 42;
+
     doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College — Leave History Report', pageW / 2, y, { align: 'center' });
-    y += 7;
-    doc.setFontSize(9);
+    doc.setFontSize(18);
+    doc.text('LeaveSync - Leave History Report', margin, y);
+    y += 18;
     doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')} | Records: ${filteredApplications.length}`, pageW / 2, y, { align: 'center' });
-    y += 10;
+    doc.setFontSize(10);
+    doc.text(`Staff: ${profile?.full_name || 'Staff'} | Filter: ${filterLabel}`, margin, y);
+    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 160, y);
+    y += 22;
 
-    // Table header
-    const headers = ['#', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const colX = [14, 24, 62, 88, 114, 126, 148, 186];
-    const colW = [10, 36, 24, 24, 12, 20, 36, 36];
+    const headers = ['#', 'Leave Type', 'Start', 'End', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
+    const widths = [28, 92, 64, 64, 96, 38, 64, 190, 180];
+    const drawHeader = () => {
+      let x = margin;
+      doc.setFillColor(44, 31, 8);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      headers.forEach((h, i) => { doc.rect(x, y, widths[i], 20, 'F'); doc.text(h, x + 4, y + 13); x += widths[i]; });
+      y += 20;
+      doc.setTextColor(0, 0, 0);
+    };
+    drawHeader();
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setFillColor(30, 20, 10);
-    doc.rect(14, y - 4, pageW - 28, 7, 'F');
-    doc.setTextColor(212, 175, 55);
-    headers.forEach((h, i) => doc.text(h, colX[i], y));
-    y += 7;
-    doc.setTextColor(30, 30, 30);
-
-    filteredApplications.forEach((app, idx) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      const isEven = idx % 2 === 0;
-      if (isEven) {
-        doc.setFillColor(250, 248, 240);
-        doc.rect(14, y - 3.5, pageW - 28, 6.5, 'F');
-      }
-      doc.setFont('helvetica', 'normal');
-      const row = [
-        String(idx + 1),
-        app.leave_type?.name || 'N/A',
-        format(new Date(app.start_date), 'dd/MM/yy'),
-        format(new Date(app.end_date), 'dd/MM/yy'),
-        String(app.leave_days),
-        app.status,
-        app.reason || '',
-        app.admin_response || 'N/A',
-      ];
-      row.forEach((cell, i) => {
-        const lines = doc.splitTextToSize(cell, colW[i] - 1);
-        doc.text(lines[0], colX[i], y);
+    if (filteredApplications.length === 0) {
+      doc.setFontSize(10);
+      doc.text('No applications found for selected filter.', margin, y + 18);
+    } else {
+      filteredApplications.forEach((app, idx) => {
+        if (y > 530) { doc.addPage(); y = 42; drawHeader(); }
+        const values = [idx + 1, app.leave_type?.name || 'N/A', format(new Date(app.start_date), 'dd/MM/yyyy'), format(new Date(app.end_date), 'dd/MM/yyyy'), formatLeaveDuration(app), app.leave_days, app.status, app.reason || '', app.admin_response || 'N/A'];
+        let x = margin;
+        doc.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255);
+        doc.rect(margin, y, widths.reduce((a,b)=>a+b,0), 28, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        values.forEach((v, i) => { doc.text(doc.splitTextToSize(String(v), widths[i] - 8).slice(0, 2), x + 4, y + 10); x += widths[i]; });
+        y += 28;
       });
-      y += 7;
-    });
-
+    }
     doc.save(`leave_history_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
+
+  const exportToExcel = downloadReport;
 
   return (
     <StaffLayout>
@@ -108,10 +136,24 @@ export default function LeaveHistory() {
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={downloadReport} variant="secondary">
-              <Download className="mr-2 h-4 w-4" />
-              Download Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download as Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -138,7 +180,7 @@ export default function LeaveHistory() {
                       <CardTitle className="text-lg">
                         {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd, yyyy')}
                       </CardTitle>
-                      <CardDescription>{app.leave_days} days</CardDescription>
+                      <CardDescription>{formatLeaveDuration(app)} • {app.leave_days} day{app.leave_days !== 1 ? 's' : ''}</CardDescription>
                     </div>
                     {getStatusBadge(app.status)}
                   </div>
