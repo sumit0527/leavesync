@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
+import { jsPDF } from 'jspdf';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
 
 interface DepartmentStats {
@@ -188,6 +189,38 @@ export default function Analytics() {
     downloadWorkbook(wb, `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const margin = 40;
+    let y = 45;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(`LeaveSync - Analytics Report ${selectedYear}`, margin, y);
+    y += 24;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, y);
+    y += 28;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary', margin, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total: ${stats.total}   Approved: ${stats.approved}   Pending: ${stats.pending}   Rejected: ${stats.rejected}`, margin, y);
+    y += 28;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Department-wise Applications', margin, y);
+    y += 18;
+    doc.setFont('helvetica', 'normal');
+    departmentStats.forEach((d) => { doc.text(`${d.department}: Total ${d.total}, Approved ${d.approved}, Pending ${d.pending}, Rejected ${d.rejected}`, margin, y); y += 16; if (y > 750) { doc.addPage(); y = 45; } });
+    y += 14;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Leave Type Usage', margin, y);
+    y += 18;
+    doc.setFont('helvetica', 'normal');
+    leaveTypeStats.forEach((t) => { doc.text(`${t.leave_type}: ${t.count} applications (${t.percentage}%)`, margin, y); y += 16; if (y > 750) { doc.addPage(); y = 45; } });
+    doc.save(`analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   const exportToExcel = downloadAnalytics;
 
   return (
@@ -218,7 +251,7 @@ export default function Analytics() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={downloadAnalytics}>
+                <DropdownMenuItem onClick={exportToPDF}>
                   <FileText className="mr-2 h-4 w-4" />
                   Download as PDF
                 </DropdownMenuItem>
