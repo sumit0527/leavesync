@@ -4,7 +4,6 @@ import StaffLayout from '@/components/layouts/StaffLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { useHolidays } from '@/hooks/use-holidays';
@@ -25,6 +24,7 @@ export default function LeaveCalendar() {
   const { holidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showBalanceOverview, setShowBalanceOverview] = useState(false);
 
   const approvedLeaves = applications.filter(app => app.status === 'approved');
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -186,46 +186,55 @@ export default function LeaveCalendar() {
               </CardContent>
             </Card>
 
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <Card className="cursor-help border-primary/30 bg-primary/5 transition hover:bg-primary/10">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <CalendarCheck2 className="h-4 w-4 text-primary" />
-                      Leave Type Balance Overview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Hover to view total, used and remaining leaves</span>
-                    <Info className="h-4 w-4" />
-                  </CardContent>
-                </Card>
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80">
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold">Leave Balance Details</p>
+            <Card className="border-primary/30 bg-primary/5">
+              <button
+                type="button"
+                onClick={() => setShowBalanceOverview((prev) => !prev)}
+                className="w-full text-left transition hover:bg-primary/10"
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <CalendarCheck2 className="h-4 w-4 text-primary" />
+                    Leave Type Balance Overview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Click to view total, used and remaining leaves</span>
+                  <Info className="h-4 w-4" />
+                </CardContent>
+              </button>
+              {showBalanceOverview && (
+                <CardContent className="border-t border-primary/20 pt-3">
                   {allocations.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No leave allocation found.</p>
                   ) : (
-                    <div className="space-y-2">
-                      {allocations.map((allocation) => (
-                        <div key={allocation.id} className="rounded-md border border-border p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-sm font-medium">{allocation.leave_type?.name ?? 'Leave Type'}</p>
-                            <Badge variant="secondary" className="shrink-0">{allocation.remaining} left</Badge>
+                    <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                      {allocations.map((allocation) => {
+                        const used = allocation.used ?? 0;
+                        const total = allocation.total_allocated;
+                        const remaining = Math.max(0, total - used);
+                        const name = allocation.leave_type?.name ?? 'Leave Type';
+                        const abbr = name
+                          .split(/\s+/)
+                          .map((w: string) => w[0]?.toUpperCase() ?? '')
+                          .join('')
+                          .slice(0, 4);
+                        return (
+                          <div key={allocation.id} className="rounded-lg bg-primary p-3 text-primary-foreground shadow-sm">
+                            <p className="truncate text-sm font-bold">{name}{abbr ? ` (${abbr})` : ''}</p>
+                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px] text-primary-foreground/90">
+                              <div className="rounded bg-white/15 px-1 py-1"><span className="block font-bold">{total}</span><span>Total</span></div>
+                              <div className="rounded bg-white/15 px-1 py-1"><span className="block font-bold">{used}</span><span>Used</span></div>
+                              <div className="rounded bg-white/25 px-1 py-1"><span className="block font-bold">{remaining}</span><span>Left</span></div>
+                            </div>
                           </div>
-                          <div className="mt-1 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                            <span>Total: {allocation.total_allocated}</span>
-                            <span>Used: {allocation.used}</span>
-                            <span>Remain: {allocation.remaining}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
+                </CardContent>
+              )}
+            </Card>
 
             <Card>
               <CardHeader>
