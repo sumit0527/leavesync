@@ -21,6 +21,13 @@ import { useState } from 'react';
 
 import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
 
+const formatLeaveDuration = (app: any) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
+
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
   const { departments } = useDepartments();
@@ -93,6 +100,7 @@ export default function AllApplications() {
     leave_type: app.leave_type?.name || 'N/A',
     start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
     end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+    duration: formatLeaveDuration(app),
     days: app.leave_days,
     status: app.status,
     reason: app.reason || '',
@@ -132,8 +140,8 @@ export default function AllApplications() {
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      const widths = [28, 100, 90, 88, 62, 62, 35, 58, 155, 140];
-      const headers = ['#', 'Staff', 'Department', 'Leave Type', 'Start', 'End', 'Days', 'Status', 'Reason', 'Admin Response'];
+      const widths = [26, 90, 78, 75, 58, 58, 86, 34, 54, 138, 130];
+      const headers = ['#', 'Staff', 'Department', 'Leave Type', 'Start', 'End', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
       let x = margin;
       headers.forEach((h, i) => {
         doc.rect(x, y, widths[i], 20, 'F');
@@ -144,7 +152,7 @@ export default function AllApplications() {
       doc.setTextColor(0, 0, 0);
     };
 
-    const widths = [28, 100, 90, 88, 62, 62, 35, 58, 155, 140];
+    const widths = [26, 90, 78, 75, 58, 58, 86, 34, 54, 138, 130];
     drawHeader();
     drawTableHeader();
 
@@ -168,6 +176,7 @@ export default function AllApplications() {
           row.leave_type,
           row.start_date,
           row.end_date,
+          row.duration,
           row.days,
           row.status.charAt(0).toUpperCase() + row.status.slice(1),
           row.reason,
@@ -411,7 +420,7 @@ export default function AllApplications() {
                       <p className="text-sm font-medium">
                         {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd, yyyy')}
                       </p>
-                      <p className="text-xs text-muted-foreground">{app.leave_days} days</p>
+                      <p className="text-xs text-muted-foreground">{formatLeaveDuration(app)} • {app.leave_days} day{app.leave_days !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -424,6 +433,10 @@ export default function AllApplications() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Department</p>
                       <p className="text-sm font-semibold">{app.staff?.department?.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                      <p className="text-sm font-semibold">{formatLeaveDuration(app)}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Status</p>
