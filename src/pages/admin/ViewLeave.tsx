@@ -27,6 +27,13 @@ import {
 } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
 
+const formatLeaveDuration = (app: LeaveApplication) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
+
 export default function ViewLeave() {
   const { profile } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
@@ -249,6 +256,7 @@ export default function ViewLeave() {
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Leave Type</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">From</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">To</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Duration</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Days</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
                       <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">File</th>
@@ -272,6 +280,9 @@ export default function ViewLeave() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {format(new Date(app.end_date), 'dd MMM yyyy')}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                          {formatLeaveDuration(app)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-center">
                           {app.leave_days}
@@ -343,7 +354,7 @@ export default function ViewLeave() {
             <DialogDescription>
               {selectedApp?.staff?.full_name} &mdash;{' '}
               {selectedApp && format(new Date(selectedApp.start_date), 'dd MMM')} to{' '}
-              {selectedApp && format(new Date(selectedApp.end_date), 'dd MMM yyyy')} ({selectedApp?.leave_days} day
+              {selectedApp && format(new Date(selectedApp.end_date), 'dd MMM yyyy')} ({selectedApp && formatLeaveDuration(selectedApp)} • {selectedApp?.leave_days} day
               {(selectedApp?.leave_days ?? 0) !== 1 ? 's' : ''})
             </DialogDescription>
           </DialogHeader>
