@@ -17,6 +17,13 @@ import { useState } from 'react';
 
 import { generateLeaveHistoryReport, downloadWorkbook } from '@/lib/excel-report';
 
+const formatLeaveDuration = (app: any) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
+
 export default function LeaveHistory() {
   const { profile } = useAuth();
   const { applications, loading } = useLeaveApplications(profile?.id);
@@ -45,6 +52,7 @@ export default function LeaveHistory() {
       leave_type: app.leave_type?.name || 'N/A',
       start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
       end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+      duration: formatLeaveDuration(app),
       days: app.leave_days,
       status: app.status,
       reason: app.reason || '',
@@ -121,7 +129,7 @@ export default function LeaveHistory() {
                       <CardTitle className="text-lg">
                         {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd, yyyy')}
                       </CardTitle>
-                      <CardDescription>{app.leave_days} days</CardDescription>
+                      <CardDescription>{formatLeaveDuration(app)} • {app.leave_days} day{app.leave_days !== 1 ? 's' : ''}</CardDescription>
                     </div>
                     {getStatusBadge(app.status)}
                   </div>
