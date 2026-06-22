@@ -384,6 +384,7 @@ export interface LeaveHistoryRow {
   leave_type: string;
   start_date: string;
   end_date: string;
+  duration?: string;
   days: number;
   status: string;
   reason: string;
@@ -441,6 +442,7 @@ export interface AllApplicationsRow {
   leave_type: string;
   start_date: string;
   end_date: string;
+  duration?: string;
   days: number;
   status: string;
   reason: string;
@@ -454,8 +456,8 @@ export function generateAllApplicationsReport(
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  const cols = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-  const colWidths = [6, 22, 20, 18, 14, 14, 8, 12, 36, 32];
+  const cols = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
+  const colWidths = [6, 22, 20, 18, 14, 14, 22, 8, 12, 36, 32];
   let rowIdx = addCompanyHeader(ws, cols.length, `All Leave Applications (${filterLabel})`);
 
   cols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
@@ -469,10 +471,11 @@ export function generateAllApplicationsReport(
     writeCell(ws, rowIdx, 3, row.leave_type, s);
     writeCell(ws, rowIdx, 4, row.start_date, s);
     writeCell(ws, rowIdx, 5, row.end_date, s);
-    writeCell(ws, rowIdx, 6, row.days, s);
-    writeCell(ws, rowIdx, 7, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
-    writeCell(ws, rowIdx, 8, row.reason, s);
-    writeCell(ws, rowIdx, 9, row.admin_response || 'N/A', s);
+    writeCell(ws, rowIdx, 6, row.duration || 'Full Day', s);
+    writeCell(ws, rowIdx, 7, row.days, s);
+    writeCell(ws, rowIdx, 8, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
+    writeCell(ws, rowIdx, 9, row.reason, s);
+    writeCell(ws, rowIdx, 10, row.admin_response || 'N/A', s);
     rowIdx++;
   });
 
@@ -480,7 +483,7 @@ export function generateAllApplicationsReport(
   writeCell(ws, rowIdx, 0, 'TOTAL', ts);
   writeCell(ws, rowIdx, 1, `${rows.length} records`, ts);
   for (let c = 2; c < cols.length - 1; c++) writeCell(ws, rowIdx, c, '', ts);
-  writeCell(ws, rowIdx, 6, rows.reduce((s, r) => s + r.days, 0), ts);
+  writeCell(ws, rowIdx, 7, rows.reduce((s, r) => s + r.days, 0), ts);
   writeCell(ws, rowIdx, cols.length - 1, '', ts);
 
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx, c: cols.length - 1 } });
