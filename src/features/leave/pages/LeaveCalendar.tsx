@@ -25,6 +25,7 @@ export default function LeaveCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showBalanceOverview, setShowBalanceOverview] = useState(false);
+  const [isBalanceHovering, setIsBalanceHovering] = useState(false);
 
   const approvedLeaves = applications.filter(app => app.status === 'approved');
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -63,6 +64,7 @@ export default function LeaveCalendar() {
 
   const selectedLeave = selectedDate ? getLeaveOnDate(selectedDate) : null;
   const selectedHoliday = selectedDate ? getHolidayName(selectedDate) : null;
+  const isBalanceOverviewOpen = showBalanceOverview || isBalanceHovering;
 
   return (
     <StaffLayout>
@@ -186,29 +188,45 @@ export default function LeaveCalendar() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/30 bg-primary/5">
-              <button
-                type="button"
-                onClick={() => setShowBalanceOverview((prev) => !prev)}
-                className="w-full text-left transition hover:bg-primary/10"
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    <CalendarCheck2 className="h-4 w-4 text-primary" />
-                    Leave Type Balance Overview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Click to view total, used and remaining leaves</span>
-                  <Info className="h-4 w-4" />
-                </CardContent>
-              </button>
-              {showBalanceOverview && (
-                <CardContent className="border-t border-primary/20 pt-3">
+            <div
+              className="relative"
+              onMouseEnter={() => setIsBalanceHovering(true)}
+              onMouseLeave={() => setIsBalanceHovering(false)}
+            >
+              <Card className="border-primary/30 bg-primary/5">
+                <button
+                  type="button"
+                  onClick={() => setShowBalanceOverview((prev) => !prev)}
+                  className="w-full text-left transition hover:bg-primary/10"
+                  aria-expanded={isBalanceOverviewOpen}
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                      <CalendarCheck2 className="h-4 w-4 text-primary" />
+                      Leave Type Balance Overview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Hover on desktop or tap on mobile to view balances</span>
+                    <Info className="h-4 w-4" />
+                  </CardContent>
+                </button>
+              </Card>
+
+              {isBalanceOverviewOpen && (
+                <div className="absolute bottom-full right-0 z-50 mb-3 w-[min(92vw,42rem)] max-w-[calc(100vw-2rem)] rounded-xl border border-primary/30 bg-background p-3 shadow-2xl">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-primary">Leave Type Balance</p>
+                      <p className="text-[11px] text-muted-foreground">Total, used and left leaves</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">{allocations.length} Types</Badge>
+                  </div>
+
                   {allocations.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No leave allocation found.</p>
+                    <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No leave allocation found.</p>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <div className="grid max-h-[55vh] grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2 lg:grid-cols-2">
                       {allocations.map((allocation) => {
                         const used = allocation.used ?? 0;
                         const total = allocation.total_allocated;
@@ -220,21 +238,21 @@ export default function LeaveCalendar() {
                           .join('')
                           .slice(0, 4);
                         return (
-                          <div key={allocation.id} className="rounded-lg bg-primary p-3 text-primary-foreground shadow-sm">
-                            <p className="truncate text-sm font-bold">{name}{abbr ? ` (${abbr})` : ''}</p>
-                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px] text-primary-foreground/90">
-                              <div className="rounded bg-white/15 px-1 py-1"><span className="block font-bold">{total}</span><span>Total</span></div>
-                              <div className="rounded bg-white/15 px-1 py-1"><span className="block font-bold">{used}</span><span>Used</span></div>
-                              <div className="rounded bg-white/25 px-1 py-1"><span className="block font-bold">{remaining}</span><span>Left</span></div>
+                          <div key={allocation.id} className="rounded-lg border border-primary/25 bg-primary p-2.5 text-primary-foreground shadow-sm">
+                            <p className="truncate text-xs font-bold sm:text-sm">{name}{abbr ? ` (${abbr})` : ''}</p>
+                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] text-primary-foreground/90 sm:text-[11px]">
+                              <div className="rounded bg-white/15 px-1 py-1"><span className="block text-sm font-bold leading-none">{total}</span><span>Total</span></div>
+                              <div className="rounded bg-white/15 px-1 py-1"><span className="block text-sm font-bold leading-none">{used}</span><span>Used</span></div>
+                              <div className="rounded bg-white/25 px-1 py-1"><span className="block text-sm font-bold leading-none">{remaining}</span><span>Left</span></div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                </CardContent>
+                </div>
               )}
-            </Card>
+            </div>
 
             <Card>
               <CardHeader>
