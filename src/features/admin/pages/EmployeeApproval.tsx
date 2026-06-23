@@ -170,11 +170,11 @@ export default function EmployeeApproval() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs font-medium sm:text-sm">Pending Approval</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-yellow-600 sm:text-2xl">{pendingCount}</div>
             </CardContent>
           </Card>
           <Card>
