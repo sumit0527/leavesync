@@ -7,7 +7,6 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { 
   LayoutDashboard, 
-  FileCheck, 
   History, 
   Calendar, 
   Bell, 
@@ -33,7 +32,6 @@ const navigation = [
   { name: 'Departments', href: '/admin/departments', icon: Building2 },
   { name: 'Leave Types', href: '/admin/leave-types', icon: CalendarDays },
   { name: 'View Leave', href: '/admin/view-leave', icon: ClipboardList },
-  { name: 'Pending Applications', href: '/admin/pending', icon: FileCheck },
   { name: 'All Applications', href: '/admin/applications', icon: History },
   { name: 'Leave Calendar', href: '/admin/calendar', icon: Calendar },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
