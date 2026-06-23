@@ -20,7 +20,6 @@ import StaffNotifications from './pages/staff/Notifications';
 // Admin pages
 import ViewLeave from './pages/admin/ViewLeave';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import PendingApplications from './pages/admin/PendingApplications';
 import AllApplications from './pages/admin/AllApplications';
 import Analytics from './pages/admin/Analytics';
 import EmployeeApproval from './pages/admin/EmployeeApproval';
@@ -64,7 +63,6 @@ export const routes: RouteConfig[] = [
 
   // Admin portal
   { name: 'Admin Dashboard', path: '/admin/dashboard', element: <AdminDashboard /> },
-  { name: 'Pending Applications', path: '/admin/pending', element: <PendingApplications /> },
   { name: 'All Applications', path: '/admin/applications', element: <AllApplications /> },
   { name: 'View Leave', path: '/admin/view-leave', element: <ViewLeave /> },
   { name: 'Analytics', path: '/admin/analytics', element: <Analytics /> },
