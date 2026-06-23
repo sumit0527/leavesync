@@ -163,6 +163,16 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </Link>
             )}
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </Button>
           </div>
         </header>
 
