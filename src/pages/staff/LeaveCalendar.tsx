@@ -30,6 +30,23 @@ export default function LeaveCalendar() {
   const approvedLeaves = applications.filter(app => app.status === 'approved');
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  const handleBalanceCardClick = () => {
+    setIsBalanceHovering(false);
+    setShowBalanceOverview((prev) => !prev);
+  };
+
+  const handleBalancePointerEnter = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse') {
+      setIsBalanceHovering(true);
+    }
+  };
+
+  const handleBalancePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse') {
+      setIsBalanceHovering(false);
+    }
+  };
+
   const isLeaveDate = useCallback((date: Date): boolean => {
     return approvedLeaves.some(app => {
       const start = new Date(app.start_date + 'T00:00:00');
@@ -190,13 +207,13 @@ export default function LeaveCalendar() {
 
             <div
               className="relative"
-              onMouseEnter={() => setIsBalanceHovering(true)}
-              onMouseLeave={() => setIsBalanceHovering(false)}
+              onPointerEnter={handleBalancePointerEnter}
+              onPointerLeave={handleBalancePointerLeave}
             >
               <Card className="border-primary/30 bg-primary/5">
                 <button
                   type="button"
-                  onClick={() => setShowBalanceOverview((prev) => !prev)}
+                  onClick={handleBalanceCardClick}
                   className="w-full text-left transition hover:bg-primary/10"
                   aria-expanded={isBalanceOverviewOpen}
                 >
@@ -220,7 +237,20 @@ export default function LeaveCalendar() {
                       <p className="text-sm font-semibold text-primary">Leave Type Balance</p>
                       <p className="text-[11px] text-muted-foreground">Total, used and left leaves</p>
                     </div>
-                    <Badge variant="outline" className="shrink-0 text-[10px]">{allocations.length} Types</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="shrink-0 text-[10px]">{allocations.length} Types</Badge>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBalanceOverview(false);
+                          setIsBalanceHovering(false);
+                        }}
+                        className="rounded-full border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/10 sm:hidden"
+                        aria-label="Close leave balance overview"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
 
                   {allocations.length === 0 ? (
