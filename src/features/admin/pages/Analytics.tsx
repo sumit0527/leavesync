@@ -261,7 +261,7 @@ export default function Analytics() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {[
             { label: 'Total Applications', value: stats.total, icon: FileText, color: 'text-primary' },
             { label: 'Approved', value: stats.approved, icon: TrendingUp, color: 'text-emerald-500' },
@@ -270,14 +270,14 @@ export default function Analytics() {
           ].map(({ label, value, icon: Icon, color }) => (
             <Card key={label} className="relative overflow-hidden">
               <div className="absolute right-0 top-0 h-16 w-16 translate-x-4 -translate-y-4 rounded-full bg-primary/5" />
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                  <Icon className={`h-4 w-4 ${color}`} />
+              <CardHeader className="p-3 pb-1">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-xs font-medium leading-tight text-muted-foreground sm:text-sm">{label}</CardTitle>
+                  <Icon className={`h-4 w-4 shrink-0 ${color}`} />
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${color}`}>{value}</div>
+              <CardContent className="p-3 pt-0">
+                <div className={`text-xl font-bold sm:text-3xl ${color}`}>{value}</div>
                 {stats.total > 0 && label !== 'Total Applications' && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {((value / stats.total) * 100).toFixed(1)}% of total
