@@ -34,7 +34,7 @@ export default function StaffDashboard() {
           <p className="mt-1 text-sm text-muted-foreground">Manage your leave applications and track your leave balance</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 max-w-2xl">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4">
           {dashboardCards.map((item) => {
             const Icon = item.icon;
             return (
@@ -58,11 +58,11 @@ export default function StaffDashboard() {
             <CardDescription className="text-xs">Use these shortcuts to finish common work faster</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="grid grid-cols-2 gap-2 max-w-2xl">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4">
               {quickActions.map((action) => {
                 const Icon = action.icon;
                 return (
-                  <Button key={action.to} variant={action.variant} size="sm" className="h-9 justify-start gap-2 px-3 text-xs sm:text-sm" asChild>
+                  <Button key={action.to} variant={action.variant} size="sm" className="h-9 justify-start gap-2 px-3 text-xs sm:text-sm md:w-full" asChild>
                     <Link to={action.to}>
                       <Icon className="h-4 w-4 shrink-0" />
                       <span className="truncate">{action.label}</span>
