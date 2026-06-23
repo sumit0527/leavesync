@@ -225,39 +225,39 @@ export default function EmployeeApproval() {
           <p className="text-muted-foreground mt-2">Review staff registrations, manage current staff, and keep past employee records safely</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Current Employees</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs font-medium sm:text-sm">Current Employees</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{currentEmployees.length}</div>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold sm:text-2xl">{currentEmployees.length}</div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs font-medium sm:text-sm">Pending Approval</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-yellow-600 sm:text-2xl">{pendingCount}</div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs font-medium sm:text-sm">Approved</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-green-600 sm:text-2xl">
                 {currentEmployees.filter(e => e.approval_status === 'approved').length}
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Past Employees</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs font-medium sm:text-sm">Past Employees</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-600">{pastEmployees.length}</div>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-slate-600 sm:text-2xl">{pastEmployees.length}</div>
             </CardContent>
           </Card>
         </div>
