@@ -42,7 +42,7 @@ const navigation = [
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isViewer } = useAuth();
   const { unreadCount } = useNotifications(profile?.id);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">Admin Portal</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="mb-3 rounded-md bg-sidebar-accent p-3">
           <p className="text-sm font-medium text-sidebar-foreground">{profile?.full_name}</p>
           <p className="text-xs text-muted-foreground">@{profile?.username}</p>
-          <p className="mt-2 text-xs text-primary">Administrator</p>
+          <p className="mt-2 text-xs text-primary">{isViewer ? 'Viewer (Read Only)' : 'Administrator'}</p>
         </div>
         <Button
           variant="ghost"
