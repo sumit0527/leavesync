@@ -42,7 +42,7 @@ const navigation = [
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isViewer } = useAuth();
   const { unreadCount } = useNotifications(profile?.id);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">Admin Portal</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="mb-3 rounded-md bg-sidebar-accent p-3">
           <p className="text-sm font-medium text-sidebar-foreground">{profile?.full_name}</p>
           <p className="text-xs text-muted-foreground">@{profile?.username}</p>
-          <p className="mt-2 text-xs text-primary">Administrator</p>
+          <p className="mt-2 text-xs text-primary">{isViewer ? 'Viewer (Read Only)' : 'Administrator'}</p>
         </div>
         <Button
           variant="ghost"
@@ -138,7 +138,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <NavContent />
               </SheetContent>
             </Sheet>
-            <h1 className="font-playfair-display text-base font-semibold gradient-text truncate">Admin Portal</h1>
+            <h1 className="font-playfair-display text-base font-semibold gradient-text truncate">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h1>
           </div>
           <div className="hidden md:flex items-center gap-3">
             <img
@@ -147,11 +147,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="h-10 w-10 object-contain"
             />
             <div>
-              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">Admin Portal</h1>
+              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {isViewer && (
+              <Badge variant="outline" className="hidden sm:inline-flex border-primary/50 text-primary">Read Only</Badge>
+            )}
             {unreadCount > 0 && (
               <Link to="/admin/notifications">
                 <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-sidebar-accent">
