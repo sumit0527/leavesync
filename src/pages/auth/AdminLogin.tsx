@@ -17,6 +17,7 @@ export default function AdminLogin() {
   const [adminSecret, setAdminSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'viewer'>('admin');
 
   // Forgot secret key dialog state
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -39,13 +40,34 @@ export default function AdminLogin() {
     }
     setLoading(true);
     const { error } = await signInWithUsername(username, password, adminSecret);
-    setLoading(false);
+
     if (error) {
+      setLoading(false);
       toast.error(error.message);
-    } else {
-      toast.success('Login successful!');
-      navigate('/admin/dashboard');
+      return;
     }
+
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+
+    if (userId) {
+      const { data: loginProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (loginProfile?.role && loginProfile.role !== selectedRole) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        toast.error(`This is a ${loginProfile.role} account. Please select ${loginProfile.role === 'viewer' ? 'Viewer' : 'Admin'} and try again.`);
+        return;
+      }
+    }
+
+    setLoading(false);
+    toast.success(selectedRole === 'viewer' ? 'Viewer login successful!' : 'Admin login successful!');
+    navigate('/admin/dashboard');
   };
 
   // Step 1: verify admin username + password
@@ -166,19 +188,50 @@ export default function AdminLogin() {
             />
           </div>
           <div>
-            <CardTitle className="text-2xl font-playfair-display gradient-text">Admin / Viewer Portal</CardTitle>
+            <CardTitle className="text-2xl font-playfair-display gradient-text">{selectedRole === 'viewer' ? 'Viewer Portal' : 'Admin Portal'}</CardTitle>
             <CardDescription className="mt-2">G.D. Sawant College — LeaveSync</CardDescription>
           </div>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <Label className="text-sm font-semibold">Login Role</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('admin')}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    selectedRole === 'admin'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border bg-card hover:bg-muted'
+                  }`}
+                >
+                  <span className="block font-semibold">Admin</span>
+                  <span className="block text-[11px] text-muted-foreground">isAdmin: full access</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('viewer')}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    selectedRole === 'viewer'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border bg-card hover:bg-muted'
+                  }`}
+                >
+                  <span className="block font-semibold">Viewer</span>
+                  <span className="block text-[11px] text-muted-foreground">isViewer: read only</span>
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Choose the correct role before login. Admin can modify data; Viewer can only view records.</p>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="username">Admin Username</Label>
+              <Label htmlFor="username">{selectedRole === 'viewer' ? 'Viewer Username' : 'Admin Username'}</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="Enter admin/viewer username"
+                placeholder={selectedRole === 'viewer' ? 'Enter viewer username' : 'Enter admin username'}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
@@ -203,14 +256,18 @@ export default function AdminLogin() {
                   <Shield className="h-3.5 w-3.5 text-primary" />
                   Admin Secret Key
                 </Label>
-                <button
-                  type="button"
-                  onClick={() => setForgotOpen(true)}
-                  className="text-xs text-primary hover:underline flex items-center gap-1"
-                >
-                  <KeyRound className="h-3 w-3" />
-                  Forgot Secret Key?
-                </button>
+                {selectedRole === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => setForgotOpen(true)}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <KeyRound className="h-3 w-3" />
+                    Forgot Secret Key?
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Read-only login</span>
+                )}
               </div>
               <div className="relative">
                 <Input
@@ -231,21 +288,27 @@ export default function AdminLogin() {
                   {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">Required for admin/viewer access</p>
+              <p className="text-xs text-muted-foreground">Required for {selectedRole === 'viewer' ? 'viewer read-only access' : 'admin access'}</p>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Admin Sign In
+              {selectedRole === 'viewer' ? 'Viewer Sign In' : 'Admin Sign In'}
             </Button>
-            <div className="text-center text-sm">
-              Don't have an admin account?{' '}
-              <Link to="/admin/register" className="text-primary hover:underline">
-                Register here
-              </Link>
-            </div>
+            {selectedRole === 'admin' ? (
+              <div className="text-center text-sm">
+                Don't have an admin account?{' '}
+                <Link to="/admin/register" className="text-primary hover:underline">
+                  Register here
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center text-xs text-muted-foreground">
+                Viewer accounts are created by admin for read-only access.
+              </div>
+            )}
             <div className="flex items-center justify-center gap-4 text-sm">
               <Link to="/admin/forgot-password" className="text-muted-foreground hover:text-primary">
                 Forgot Password
