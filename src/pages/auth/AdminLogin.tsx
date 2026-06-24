@@ -43,7 +43,7 @@ export default function AdminLogin() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Admin login successful!');
+      toast.success('Login successful!');
       navigate('/admin/dashboard');
     }
   };
@@ -166,7 +166,7 @@ export default function AdminLogin() {
             />
           </div>
           <div>
-            <CardTitle className="text-2xl font-playfair-display gradient-text">Admin Portal</CardTitle>
+            <CardTitle className="text-2xl font-playfair-display gradient-text">Admin / Viewer Portal</CardTitle>
             <CardDescription className="mt-2">G.D. Sawant College — LeaveSync</CardDescription>
           </div>
         </CardHeader>
@@ -178,7 +178,7 @@ export default function AdminLogin() {
               <Input
                 id="username"
                 type="text"
-                placeholder="Enter admin username"
+                placeholder="Enter admin/viewer username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
@@ -231,7 +231,7 @@ export default function AdminLogin() {
                   {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">Required for admin access</p>
+              <p className="text-xs text-muted-foreground">Required for admin/viewer access</p>
             </div>
           </CardContent>
 
