@@ -46,7 +46,12 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
   const NavContent = () => (
     <div className="flex h-full flex-col">
       <div className="border-b border-sidebar-border p-6">
-        <div className="flex items-center space-x-3">
+        <Link
+          to="/staff/dashboard"
+          onClick={() => setMobileMenuOpen(false)}
+          className="flex items-center space-x-3 rounded-md transition-opacity hover:opacity-90"
+          title="Go to dashboard"
+        >
           <div className="h-12 w-12 overflow-hidden rounded-full border-2 border-primary">
             <img
               src="https://miaoda-conversation-file.s3cdn.medo.dev/user-940k6ouwh91c/conv-bmt0l5ltqby8/20260515/file-bnj2ppyfkutc.png"
@@ -58,7 +63,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             <h2 className="font-playfair-display text-lg font-semibold gradient-text">LeaveSync</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       <nav className="flex-1 space-y-1 p-4">
@@ -130,7 +135,11 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             </Sheet>
             <h1 className="font-playfair-display text-lg font-semibold gradient-text">LeaveSync</h1>
           </div>
-          <div className="hidden md:flex items-center gap-3">
+          <Link
+            to="/staff/dashboard"
+            className="hidden md:flex items-center gap-3 rounded-md transition-opacity hover:opacity-90"
+            title="Go to dashboard"
+          >
             <img 
               src="https://miaoda-conversation-file.s3cdn.medo.dev/user-940k6ouwh91c/conv-bmt0l5ltqby8/20260515/file-bnj2ppyfkutc.png" 
               alt="G.D. Sawant College" 
@@ -140,7 +149,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               <h1 className="font-playfair-display text-xl font-bold gradient-text">LeaveSync</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
-          </div>
+          </Link>
           <ThemeToggle />
         </header>
 
