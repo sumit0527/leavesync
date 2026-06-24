@@ -5,7 +5,7 @@ export interface Option {
   withCount?: boolean;
 }
 
-export type UserRole = 'staff' | 'admin';
+export type UserRole = 'staff' | 'admin' | 'viewer';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type EmploymentStatus = 'active' | 'past';
