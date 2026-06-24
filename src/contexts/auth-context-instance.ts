@@ -17,6 +17,8 @@ export interface AuthContextType {
   refreshProfile: () => Promise<void>;
   isAdmin: boolean;
   isStaff: boolean;
+  isViewer: boolean;
+  isManagementUser: boolean;
 }
 
 // Singleton context — created once, never re-created
