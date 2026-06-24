@@ -150,14 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Your account has been rejected. Please contact administration');
         }
 
-        if (adminSecret && userProfile.role !== 'admin') {
+        if (adminSecret && !['admin', 'viewer'].includes(userProfile.role)) {
           await supabase.auth.signOut();
-          throw new Error('This account is not an admin account');
+          throw new Error('This account is not an admin/viewer account');
         }
 
         if (!adminSecret && userProfile.role !== 'staff') {
           await supabase.auth.signOut();
-          throw new Error('This account is not a staff account. Please use Admin Login.');
+          throw new Error('This account is not a staff account. Please use Admin/Viewer Login.');
         }
       }
 
@@ -222,6 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = profile?.role === 'admin';
   const isStaff = profile?.role === 'staff';
+  const isViewer = profile?.role === 'viewer';
+  const isManagementUser = isAdmin || isViewer;
 
   return (
     <AuthContext.Provider value={{ 
@@ -233,7 +235,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut, 
       refreshProfile,
       isAdmin,
-      isStaff
+      isStaff,
+      isViewer,
+      isManagementUser
     }}>
       {children}
     </AuthContext.Provider>
