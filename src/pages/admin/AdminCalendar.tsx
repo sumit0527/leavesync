@@ -11,6 +11,7 @@ import { supabase } from '@/db/supabase';
 import { format, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun, Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LeavesOnDate {
   staffName: string;
@@ -19,6 +20,7 @@ interface LeavesOnDate {
 }
 
 export default function AdminCalendar() {
+  const { isViewer } = useAuth();
   const { applications } = useLeaveApplications();
   const { holidays, refetch: refetchHolidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -132,7 +134,7 @@ export default function AdminCalendar() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Calendar</h1>
-          <p className="mt-2 text-muted-foreground">View approved leaves and add college holidays on specific dates</p>
+          <p className="mt-2 text-muted-foreground">{isViewer ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -204,11 +206,12 @@ export default function AdminCalendar() {
           </Card>
 
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Plus className="h-4 w-4 text-primary" />
-                  Add College Holiday
+            {!isViewer && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Plus className="h-4 w-4 text-primary" />
+                    Add College Holiday
                 </CardTitle>
                 <CardDescription>Select a date or click a day from calendar</CardDescription>
               </CardHeader>
@@ -225,8 +228,9 @@ export default function AdminCalendar() {
                   {savingHoliday ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   Save Holiday
                 </Button>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -246,9 +250,11 @@ export default function AdminCalendar() {
                           <Sun className="h-4 w-4 text-destructive shrink-0" />
                           <span className="truncate text-xs font-medium text-destructive">{getHolidayName(selectedDate)}</span>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(selectedHoliday.id)} disabled={deletingHolidayId === selectedHoliday.id}>
-                          {deletingHolidayId === selectedHoliday.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        </Button>
+                        {!isViewer && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(selectedHoliday.id)} disabled={deletingHolidayId === selectedHoliday.id}>
+                            {deletingHolidayId === selectedHoliday.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        )}
                       </div>
                     )}
                     {selectedDayLeaves.length === 0 && !selectedHoliday ? (
@@ -288,9 +294,11 @@ export default function AdminCalendar() {
                           <p className="text-xs font-medium">{h.name}</p>
                           <p className="text-[11px] text-muted-foreground">{format(new Date(`${h.date}T00:00:00`), 'dd MMM yyyy')}</p>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}>
-                          {deletingHolidayId === h.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        </Button>
+                        {!isViewer && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}>
+                            {deletingHolidayId === h.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
