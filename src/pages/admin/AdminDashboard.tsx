@@ -13,7 +13,7 @@ import { supabase } from '@/db/supabase';
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, isViewer } = useAuth();
   const { applications, loading } = useLeaveApplications();
   const { stats } = useLeaveStats();
   const [employeeCount, setEmployeeCount] = useState(0);
@@ -101,8 +101,8 @@ export default function AdminDashboard() {
     <AdminLayout>
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">Admin Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Welcome back, {profile?.full_name}</p>
+          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{isViewer ? 'Viewer Dashboard' : 'Admin Dashboard'}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3 lg:grid-cols-6">
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
         <Card className={compactCardClass}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="font-playfair-display text-lg">Quick Actions</CardTitle>
-            <CardDescription className="text-xs">Compact shortcuts for main admin work</CardDescription>
+            <CardDescription className="text-xs">{isViewer ? 'Read-only shortcuts for records and reports' : 'Compact shortcuts for main admin work'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
