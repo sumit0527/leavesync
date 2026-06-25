@@ -264,7 +264,7 @@ export default function HomePage() {
 
           {/* Title */}
           <h1 className="font-playfair-display text-[2.6rem] sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-[3px] sm:tracking-[6px] md:tracking-[8px] uppercase shimmer-text mb-3 sm:mb-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            LeaveSync
+            leaveSYNC
           </h1>
 
           {/* Divider */}
@@ -543,7 +543,7 @@ export default function HomePage() {
             G.D. Sawant College of Technology
           </p>
           <p className="text-xs text-muted-foreground/40 mt-2 tracking-wider">
-            LeaveSync &copy; 2026 &middot; All Rights Reserved
+            leaveSYNC &copy; 2026 &middot; All Rights Reserved
           </p>
         </footer>
       </div>
