@@ -150,14 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Your account has been rejected. Please contact administration');
         }
 
-        if (adminSecret && !['admin', 'viewer'].includes(userProfile.role)) {
+        if (adminSecret && !['admin', 'principal', 'main_admin', 'viewer'].includes(userProfile.role)) {
           await supabase.auth.signOut();
-          throw new Error('This account is not an admin/viewer account');
+          throw new Error('This account is not a principal/main admin/viewer account');
         }
 
         if (!adminSecret && userProfile.role !== 'staff') {
           await supabase.auth.signOut();
-          throw new Error('This account is not a staff account. Please use Admin/Viewer Login.');
+          throw new Error('This account is not a staff account. Please use Management Login.');
         }
       }
 
@@ -220,10 +220,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
-  const isAdmin = profile?.role === 'admin';
+  // Transition-safe role helpers:
+  // - Existing DB role 'admin' is treated as Principal for now because current admin manages staff flow.
+  // - New DB roles 'principal' and 'main_admin' are prepared for next phases.
+  const isLegacyAdmin = profile?.role === 'admin';
+  const isPrincipal = profile?.role === 'principal' || profile?.role === 'admin';
+  const isMainAdmin = profile?.role === 'main_admin';
+  const isAdmin = isPrincipal || isMainAdmin;
   const isStaff = profile?.role === 'staff';
   const isViewer = profile?.role === 'viewer';
   const isManagementUser = isAdmin || isViewer;
+
+  const portalRoleLabel = isViewer
+    ? 'Viewer'
+    : isMainAdmin
+      ? 'Main Admin'
+      : isPrincipal
+        ? 'Principal'
+        : isStaff
+          ? 'Staff'
+          : 'User';
 
   return (
     <AuthContext.Provider value={{ 
@@ -237,7 +253,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       isStaff,
       isViewer,
-      isManagementUser
+      isPrincipal,
+      isMainAdmin,
+      isLegacyAdmin,
+      isManagementUser,
+      portalRoleLabel
     }}>
       {children}
     </AuthContext.Provider>
