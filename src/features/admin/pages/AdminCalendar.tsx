@@ -1,13 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useHolidays } from '@/hooks/use-holidays';
 import { supabase } from '@/db/supabase';
 import { format, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun, Plus, Trash2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LeavesOnDate {
   staffName: string;
@@ -16,11 +20,16 @@ interface LeavesOnDate {
 }
 
 export default function AdminCalendar() {
+  const { isViewer } = useAuth();
   const { applications } = useLeaveApplications();
-  const { holidays } = useHolidays();
+  const { holidays, refetch: refetchHolidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDayLeaves, setSelectedDayLeaves] = useState<LeavesOnDate[]>([]);
+  const [holidayName, setHolidayName] = useState('');
+  const [holidayDate, setHolidayDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [savingHoliday, setSavingHoliday] = useState(false);
+  const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
 
   const approvedLeaves = applications.filter(app => app.status === 'approved');
 
@@ -38,20 +47,17 @@ export default function AdminCalendar() {
     return holidays.some(h => h.date === ds);
   }, [holidays]);
 
-  const getHolidayName = (date: Date): string | null => {
+  const getHoliday = (date: Date) => {
     const ds = format(date, 'yyyy-MM-dd');
-    const h = holidays.find(h => h.date === ds);
-    return h?.name ?? null;
+    return holidays.find(h => h.date === ds) ?? null;
   };
+
+  const getHolidayName = (date: Date): string | null => getHoliday(date)?.name ?? null;
 
   const getLeavesOnDate = (date: Date): LeavesOnDate[] => {
     const ds = format(date, 'yyyy-MM-dd');
     return approvedLeaves
-      .filter(app => {
-        const start = app.start_date;
-        const end = app.end_date;
-        return ds >= start && ds <= end;
-      })
+      .filter(app => ds >= app.start_date && ds <= app.end_date)
       .map(app => ({
         staffName: app.staff?.full_name ?? 'Unknown',
         department: (app.staff as any)?.department?.name ?? 'N/A',
@@ -61,39 +67,77 @@ export default function AdminCalendar() {
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
+    setHolidayDate(format(date, 'yyyy-MM-dd'));
     setSelectedDayLeaves(getLeavesOnDate(date));
   };
 
-  // Realtime update for holidays
-  useEffect(() => {
-    const channel = supabase
-      .channel('admin-calendar-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'holidays' }, () => {
-        // useHolidays doesn't expose refetch, but applications hook handles leave_applications
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  const handleAddHoliday = async () => {
+    if (!holidayDate) {
+      toast.error('Please select holiday date');
+      return;
+    }
+    if (!holidayName.trim()) {
+      toast.error('Please enter holiday name');
+      return;
+    }
+
+    setSavingHoliday(true);
+    try {
+      const { error } = await supabase
+        .from('holidays')
+        .upsert({ date: holidayDate, name: holidayName.trim() }, { onConflict: 'date' });
+
+      if (error) throw error;
+      toast.success('Holiday saved successfully');
+      setHolidayName('');
+      await refetchHolidays();
+      const newSelectedDate = new Date(`${holidayDate}T00:00:00`);
+      setSelectedDate(newSelectedDate);
+      setSelectedDayLeaves(getLeavesOnDate(newSelectedDate));
+    } catch (err) {
+      console.error('Failed to save holiday:', err);
+      toast.error('Failed to save holiday');
+    } finally {
+      setSavingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (holidayId: string) => {
+    if (!window.confirm('Remove this holiday from calendar?')) return;
+
+    setDeletingHolidayId(holidayId);
+    try {
+      const { error } = await supabase.from('holidays').delete().eq('id', holidayId);
+      if (error) throw error;
+      toast.success('Holiday removed');
+      await refetchHolidays();
+    } catch (err) {
+      console.error('Failed to delete holiday:', err);
+      toast.error('Failed to delete holiday');
+    } finally {
+      setDeletingHolidayId(null);
+    }
+  };
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const startDow = getDay(monthStart); // 0=Sun
+  const startDow = getDay(monthStart);
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const prevMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const selectedHoliday = selectedDate ? getHoliday(selectedDate) : null;
 
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Calendar</h1>
-          <p className="mt-2 text-muted-foreground">All staff approved leaves and public holidays — click a date for details</p>
+          <p className="mt-2 text-muted-foreground">{isViewer ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Calendar */}
           <Card className="md:col-span-2">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -105,13 +149,12 @@ export default function AdminCalendar() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Day headers */}
               <div className="mb-2 grid grid-cols-7">
                 {weekDays.map(d => (
                   <div key={d} className="py-1 text-center text-xs font-semibold text-muted-foreground">{d}</div>
                 ))}
               </div>
-              {/* Day cells */}
+
               <div className="grid grid-cols-7 gap-0.5">
                 {Array.from({ length: startDow }).map((_, i) => <div key={`empty-${i}`} />)}
                 {daysInMonth.map(day => {
@@ -145,7 +188,6 @@ export default function AdminCalendar() {
                 })}
               </div>
 
-              {/* Legend */}
               <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded bg-primary/20 ring-1 ring-primary/40" />
@@ -153,23 +195,43 @@ export default function AdminCalendar() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded bg-destructive/20 ring-1 ring-destructive/40" />
-                  <span className="text-xs text-muted-foreground">Public Holiday</span>
+                  <span className="text-xs text-muted-foreground">Holiday</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded border border-primary" />
                   <span className="text-xs text-muted-foreground">Today</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground font-bold">2</span>
-                  <span className="text-xs text-muted-foreground">Staff count on leave</span>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Sidebar */}
           <div className="space-y-4">
-            {/* Selected date details */}
+            {!isViewer && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Plus className="h-4 w-4 text-primary" />
+                    Add College Holiday
+                </CardTitle>
+                <CardDescription>Select a date or click a day from calendar</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="holidayDate">Date</Label>
+                  <Input id="holidayDate" type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="holidayName">Holiday Name</Label>
+                  <Input id="holidayName" placeholder="e.g. Ganesh Chaturthi" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} />
+                </div>
+                <Button className="w-full" onClick={handleAddHoliday} disabled={savingHoliday}>
+                  {savingHoliday ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  Save Holiday
+                </Button>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -179,17 +241,24 @@ export default function AdminCalendar() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {!selectedDate ? (
-                  <p className="text-xs text-muted-foreground">Click any date to see who is on leave</p>
+                  <p className="text-xs text-muted-foreground">Click any date to see leave and holiday details</p>
                 ) : (
                   <>
-                    {isHolidayDate(selectedDate) && (
-                      <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-2">
-                        <Sun className="h-4 w-4 text-destructive shrink-0" />
-                        <span className="text-xs font-medium text-destructive">{getHolidayName(selectedDate)}</span>
+                    {selectedHoliday && (
+                      <div className="flex items-center justify-between gap-2 rounded-md bg-destructive/10 p-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Sun className="h-4 w-4 text-destructive shrink-0" />
+                          <span className="truncate text-xs font-medium text-destructive">{getHolidayName(selectedDate)}</span>
+                        </div>
+                        {!isViewer && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(selectedHoliday.id)} disabled={deletingHolidayId === selectedHoliday.id}>
+                            {deletingHolidayId === selectedHoliday.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        )}
                       </div>
                     )}
-                    {selectedDayLeaves.length === 0 && !isHolidayDate(selectedDate) ? (
-                      <p className="text-xs text-muted-foreground">No approved leaves on this day</p>
+                    {selectedDayLeaves.length === 0 && !selectedHoliday ? (
+                      <p className="text-xs text-muted-foreground">No approved leaves or holiday on this day</p>
                     ) : selectedDayLeaves.length > 0 ? (
                       <div className="space-y-2">
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
@@ -210,42 +279,29 @@ export default function AdminCalendar() {
               </CardContent>
             </Card>
 
-            {/* Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Total Approved Leaves</span>
-                  <Badge>{approvedLeaves.length}</Badge>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Public Holidays</span>
-                  <Badge variant="outline">{holidays.length}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Upcoming Holidays */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium">Upcoming Holidays</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {holidays
-                  .filter(h => new Date(h.date) >= new Date())
-                  .slice(0, 6)
-                  .map(h => (
-                    <div key={h.id} className="flex items-center justify-between text-sm">
-                      <span className="truncate">{h.name}</span>
-                      <Badge variant="outline" className="shrink-0 ml-2 text-xs">
-                        {format(new Date(h.date + 'T00:00:00'), 'dd MMM')}
-                      </Badge>
-                    </div>
-                  ))}
-                {holidays.filter(h => new Date(h.date) >= new Date()).length === 0 && (
-                  <p className="text-xs text-muted-foreground">No upcoming holidays</p>
+              <CardContent>
+                {holidays.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No holidays added yet</p>
+                ) : (
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {holidays.slice(0, 12).map(h => (
+                      <div key={h.id} className="flex items-center justify-between rounded-md border border-border p-2">
+                        <div>
+                          <p className="text-xs font-medium">{h.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{format(new Date(`${h.date}T00:00:00`), 'dd MMM yyyy')}</p>
+                        </div>
+                        {!isViewer && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}>
+                            {deletingHolidayId === h.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
