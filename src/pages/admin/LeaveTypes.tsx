@@ -13,8 +13,10 @@ import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { Calendar, Plus, Edit, Trash2, Loader2, FileText, CheckCircle, XCircle } from 'lucide-react';
 import type { LeaveType } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LeaveTypes() {
+  const { isViewer } = useAuth();
   const { leaveTypes, loading, refetch } = useLeaveTypes();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -143,12 +145,14 @@ export default function LeaveTypes() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Types</h1>
-            <p className="mt-2 text-muted-foreground">Manage leave type configurations</p>
+            <p className="mt-2 text-muted-foreground">{isViewer ? 'View leave type configurations' : 'Manage leave type configurations'}</p>
           </div>
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Leave Type
-          </Button>
+          {!isViewer && (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Leave Type
+            </Button>
+          )}
         </div>
 
         {loading ? (
@@ -163,10 +167,12 @@ export default function LeaveTypes() {
             <CardContent className="p-8 text-center">
               <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">No leave types found</p>
-              <Button onClick={handleCreate} className="mt-4">
-                <Plus className="mr-2 h-4 w-4" />
-                Create First Leave Type
-              </Button>
+              {!isViewer && (
+                <Button onClick={handleCreate} className="mt-4">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create First Leave Type
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -176,22 +182,24 @@ export default function LeaveTypes() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <Calendar className="h-8 w-8 text-primary" />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(type)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(type)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    {!isViewer && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(type)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(type)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <CardTitle className="font-playfair-display">{type.name}</CardTitle>
                   {type.description && (
