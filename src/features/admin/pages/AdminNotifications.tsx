@@ -19,7 +19,7 @@ export default function AdminNotifications() {
     isManagementRole ? 'all' : 'own'
   );
 
-  const pageTitle = isViewer ? 'Viewer Notifications' : 'Admin Notifications';
+  const pageTitle = `${portalRoleLabel} Notifications`;
 
   return (
     <AdminLayout>
