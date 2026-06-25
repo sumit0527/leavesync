@@ -60,7 +60,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">LeaveSync</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">leaveSYNC</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </Link>
@@ -139,7 +139,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               to="/staff/dashboard"
               className="font-playfair-display text-base font-semibold gradient-text truncate"
             >
-              LeaveSync
+              leaveSYNC
             </Link>
           </div>
           {/* Desktop: logo + name */}
@@ -154,7 +154,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               className="h-10 w-10 object-contain"
             />
             <div>
-              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">LeaveSync</h1>
+              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">leaveSYNC</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
           </Link>
