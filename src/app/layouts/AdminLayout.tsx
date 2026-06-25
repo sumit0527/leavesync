@@ -129,46 +129,37 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <NavContent />
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0">
-        <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-6">
-          <div className="flex items-center gap-3 md:hidden min-w-0">
+      <div className="flex flex-1 flex-col">
+        <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-8">
+          <div className="flex items-center gap-4 md:hidden">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="shrink-0">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Open menu</span>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64 bg-sidebar p-0">
                 <NavContent />
               </SheetContent>
             </Sheet>
-            <Link
-              to="/admin/dashboard"
-              className="font-playfair-display text-base font-semibold gradient-text truncate"
-            >
-              {isViewer ? 'Viewer Portal' : 'Admin Portal'}
-            </Link>
+            <h1 className="font-playfair-display text-lg font-semibold gradient-text">Admin Portal</h1>
           </div>
           <Link
             to="/admin/dashboard"
             className="hidden md:flex items-center gap-3 rounded-md transition-opacity hover:opacity-90"
             title="Go to dashboard"
           >
-            <img
-              src="https://miaoda-conversation-file.s3cdn.medo.dev/user-940k6ouwh91c/conv-bmt0l5ltqby8/20260515/file-bnj2ppyfkutc.png"
-              alt="G.D. Sawant College"
-              className="h-10 w-10 object-contain"
+            <img 
+              src="https://miaoda-conversation-file.s3cdn.medo.dev/user-940k6ouwh91c/conv-bmt0l5ltqby8/20260515/file-bnj2ppyfkutc.png" 
+              alt="G.D. Sawant College" 
+              className="h-12 w-12 object-contain"
             />
             <div>
-              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h1>
+              <h1 className="font-playfair-display text-xl font-bold gradient-text">Admin Portal</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
-          </Link>
-          <div className="flex items-center gap-2 shrink-0">
-            {isViewer && (
-              <Badge variant="outline" className="hidden sm:inline-flex border-primary/50 text-primary">Read Only</Badge>
-            )}
+          </div>
+          <div className="flex items-center gap-2">
             {unreadCount > 0 && (
               <Link to="/admin/notifications">
                 <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-sidebar-accent">
@@ -193,7 +184,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
+        <main className="flex-1 overflow-x-hidden p-4 md:p-8">
           {children}
         </main>
       </div>
