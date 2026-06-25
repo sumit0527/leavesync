@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { User, Mail, Phone, MapPin, AtSign, Shield, Edit3, Save, X, Loader2, KeyRound, Lock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, AtSign, Shield, Edit3, Save, X, Loader2, KeyRound, Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -31,12 +31,18 @@ export default function AdminProfile() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
 
-  // Admin secret key change state
+  // Management secret key change state
   const [secretDialog, setSecretDialog] = useState(false);
   const [currentSecret, setCurrentSecret] = useState('');
   const [newSecret, setNewSecret] = useState('');
   const [confirmSecret, setConfirmSecret] = useState('');
   const [secretLoading, setSecretLoading] = useState(false);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [showCurrentSecret, setShowCurrentSecret] = useState(false);
+  const [showNewSecret, setShowNewSecret] = useState(false);
+  const [showConfirmSecret, setShowConfirmSecret] = useState(false);
 
   const startEdit = () => {
     setFormData({
@@ -96,7 +102,7 @@ export default function AdminProfile() {
       if (updateError) throw updateError;
       toast.success('Password changed successfully');
       setPwDialog(false);
-      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      setCurrentPw(''); setNewPw(''); setConfirmPw(''); setShowCurrentPw(false); setShowNewPw(false); setShowConfirmPw(false);
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to change password');
     } finally {
@@ -140,9 +146,9 @@ export default function AdminProfile() {
         .eq('key', 'admin_secret_key');
 
       if (updateErr) throw updateErr;
-      toast.success('Admin secret key updated successfully');
+      toast.success('Management secret key updated successfully');
       setSecretDialog(false);
-      setCurrentSecret(''); setNewSecret(''); setConfirmSecret('');
+      setCurrentSecret(''); setNewSecret(''); setConfirmSecret(''); setShowCurrentSecret(false); setShowNewSecret(false); setShowConfirmSecret(false);
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to update secret key');
     } finally {
@@ -151,12 +157,12 @@ export default function AdminProfile() {
   };
 
   const openPwDialog = () => {
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    setCurrentPw(''); setNewPw(''); setConfirmPw(''); setShowCurrentPw(false); setShowNewPw(false); setShowConfirmPw(false);
     setPwDialog(true);
   };
 
   const openSecretDialog = () => {
-    setCurrentSecret(''); setNewSecret(''); setConfirmSecret('');
+    setCurrentSecret(''); setNewSecret(''); setConfirmSecret(''); setShowCurrentSecret(false); setShowNewSecret(false); setShowConfirmSecret(false);
     setSecretDialog(true);
   };
 
@@ -166,9 +172,9 @@ export default function AdminProfile() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">My Profile</h1>
-            <p className="mt-2 text-muted-foreground">{isViewer ? 'View your viewer profile details' : 'Manage your admin profile and security settings'}</p>
+            <p className="mt-2 text-muted-foreground">{isViewer ? 'Manage your viewer profile details' : 'Manage your profile and security settings'}</p>
           </div>
-          {!isViewer && (!editing ? (
+          {(!editing ? (
             <Button onClick={startEdit} variant="secondary">
               <Edit3 className="mr-2 h-4 w-4" />
               Edit Profile
@@ -253,24 +259,24 @@ export default function AdminProfile() {
         </Card>
 
         {/* Security Card */}
-        {!isViewer && (
-          <Card>
+        <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">Security Settings</CardTitle>
-            <CardDescription>Manage your password and admin secret key</CardDescription>
+            <CardDescription>{isViewer ? 'Manage your viewer password' : 'Manage your password and management secret key'}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row">
             <Button onClick={openPwDialog} variant="secondary">
               <KeyRound className="mr-2 h-4 w-4" />
               Change Password
             </Button>
-            <Button onClick={openSecretDialog} variant="secondary">
-              <Lock className="mr-2 h-4 w-4" />
-              Change Admin Secret Key
-            </Button>
+            {!isViewer && (
+              <Button onClick={openSecretDialog} variant="secondary">
+                <Lock className="mr-2 h-4 w-4" />
+                Change Management Secret Key
+              </Button>
+            )}
           </CardContent>
-          </Card>
-        )}
+        </Card>
 
         {/* Change Password Dialog */}
         <Dialog open={pwDialog} onOpenChange={setPwDialog}>
@@ -282,15 +288,15 @@ export default function AdminProfile() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPw">Current Password</Label>
-                <Input id="currentPw" type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} disabled={pwLoading} className="px-3" />
+                <div className="relative"><Input id="currentPw" type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={e => setCurrentPw(e.target.value)} disabled={pwLoading} className="px-3 pr-10" /><button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPw">New Password</Label>
-                <Input id="newPw" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} disabled={pwLoading} className="px-3" placeholder="Min 6 characters" />
+                <div className="relative"><Input id="newPw" type={showNewPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} disabled={pwLoading} className="px-3 pr-10" placeholder="Min 6 characters" /><button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPw">Confirm New Password</Label>
-                <Input id="confirmPw" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} disabled={pwLoading} className="px-3" />
+                <div className="relative"><Input id="confirmPw" type={showConfirmPw ? 'text' : 'password'} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} disabled={pwLoading} className="px-3 pr-10" /><button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
             </div>
             <DialogFooter>
@@ -309,21 +315,21 @@ export default function AdminProfile() {
             <DialogHeader>
               <DialogTitle className="font-playfair-display">Change Admin Secret Key</DialogTitle>
               <DialogDescription>
-                The admin secret key is required when registering new admin accounts. Keep it confidential.
+                The management secret key is required when registering new admin accounts. Keep it confidential.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentSecret">Current Secret Key</Label>
-                <Input id="currentSecret" type="password" value={currentSecret} onChange={e => setCurrentSecret(e.target.value)} disabled={secretLoading} className="px-3" placeholder="Enter current key" />
+                <div className="relative"><Input id="currentSecret" type={showCurrentSecret ? 'text' : 'password'} value={currentSecret} onChange={e => setCurrentSecret(e.target.value)} disabled={secretLoading} className="px-3 pr-10" placeholder="Enter current key" /><button type="button" onClick={() => setShowCurrentSecret(!showCurrentSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showCurrentSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newSecret">New Secret Key</Label>
-                <Input id="newSecret" type="password" value={newSecret} onChange={e => setNewSecret(e.target.value)} disabled={secretLoading} className="px-3" placeholder="Min 6 characters" />
+                <div className="relative"><Input id="newSecret" type={showNewSecret ? 'text' : 'password'} value={newSecret} onChange={e => setNewSecret(e.target.value)} disabled={secretLoading} className="px-3 pr-10" placeholder="Min 6 characters" /><button type="button" onClick={() => setShowNewSecret(!showNewSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showNewSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmSecret">Confirm New Secret Key</Label>
-                <Input id="confirmSecret" type="password" value={confirmSecret} onChange={e => setConfirmSecret(e.target.value)} disabled={secretLoading} className="px-3" />
+                <div className="relative"><Input id="confirmSecret" type={showConfirmSecret ? 'text' : 'password'} value={confirmSecret} onChange={e => setConfirmSecret(e.target.value)} disabled={secretLoading} className="px-3 pr-10" /><button type="button" onClick={() => setShowConfirmSecret(!showConfirmSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>{showConfirmSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
               </div>
               <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
                 <strong>Important:</strong> After changing the secret key, ensure all existing admins are informed of the new key. The old key will no longer work for new admin registrations.
