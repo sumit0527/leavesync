@@ -60,7 +60,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">LeaveSync</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">leaveSYNC</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </Link>
@@ -133,7 +133,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
                 <NavContent />
               </SheetContent>
             </Sheet>
-            <h1 className="font-playfair-display text-lg font-semibold gradient-text">LeaveSync</h1>
+            <h1 className="font-playfair-display text-lg font-semibold gradient-text">leaveSYNC</h1>
           </div>
           <Link
             to="/staff/dashboard"
@@ -146,7 +146,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               className="h-12 w-12 object-contain"
             />
             <div>
-              <h1 className="font-playfair-display text-xl font-bold gradient-text">LeaveSync</h1>
+              <h1 className="font-playfair-display text-xl font-bold gradient-text">leaveSYNC</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
           </Link>
