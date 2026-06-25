@@ -12,8 +12,10 @@ import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { Building2, Plus, Edit, Trash2, Loader2, Users } from 'lucide-react';
 import type { Department } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Departments() {
+  const { isViewer } = useAuth();
   const { departments, loading, refetch } = useDepartments();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -126,12 +128,14 @@ export default function Departments() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Departments</h1>
-            <p className="mt-2 text-muted-foreground">Manage college departments</p>
+            <p className="mt-2 text-muted-foreground">{isViewer ? 'View college departments' : 'Manage college departments'}</p>
           </div>
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Department
-          </Button>
+          {!isViewer && (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Department
+            </Button>
+          )}
         </div>
 
         {loading ? (
@@ -146,10 +150,12 @@ export default function Departments() {
             <CardContent className="p-8 text-center">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">No departments found</p>
-              <Button onClick={handleCreate} className="mt-4">
-                <Plus className="mr-2 h-4 w-4" />
-                Create First Department
-              </Button>
+              {!isViewer && (
+                <Button onClick={handleCreate} className="mt-4">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create First Department
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -159,22 +165,24 @@ export default function Departments() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <Building2 className="h-8 w-8 text-primary" />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(dept)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(dept)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    {!isViewer && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(dept)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(dept)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <CardTitle className="font-playfair-display">{dept.name}</CardTitle>
                   {dept.description && (
