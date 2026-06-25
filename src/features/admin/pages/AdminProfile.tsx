@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function AdminProfile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, isViewer } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -166,9 +166,9 @@ export default function AdminProfile() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">My Profile</h1>
-            <p className="mt-2 text-muted-foreground">Manage your admin profile and security settings</p>
+            <p className="mt-2 text-muted-foreground">{isViewer ? 'View your viewer profile details' : 'Manage your admin profile and security settings'}</p>
           </div>
-          {!editing ? (
+          {!isViewer && (!editing ? (
             <Button onClick={startEdit} variant="secondary">
               <Edit3 className="mr-2 h-4 w-4" />
               Edit Profile
@@ -184,14 +184,14 @@ export default function AdminProfile() {
                 Save
               </Button>
             </div>
-          )}
+          ))}
         </div>
 
         {/* Profile Card */}
         <Card className="gold-border">
           <CardHeader>
             <CardTitle className="font-playfair-display">Personal Information</CardTitle>
-            <CardDescription>Administrator account details</CardDescription>
+            <CardDescription>{isViewer ? 'Viewer account details' : 'Administrator account details'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {editing ? (
@@ -221,7 +221,7 @@ export default function AdminProfile() {
                   { icon: Mail, label: 'Email', value: profile?.email || 'Not provided' },
                   { icon: Phone, label: 'Phone', value: profile?.phone || 'Not provided' },
                   { icon: MapPin, label: 'Address', value: profile?.address || 'Not provided' },
-                  { icon: Shield, label: 'Role', value: 'Administrator' },
+                  { icon: Shield, label: 'Role', value: isViewer ? 'Viewer (Read Only)' : 'Administrator' },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 rounded-md border border-border p-3">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -235,7 +235,7 @@ export default function AdminProfile() {
                   <Shield className="h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Account Status</p>
-                    <Badge className="bg-green-600/20 text-green-600">Active Administrator</Badge>
+                    <Badge className="bg-green-600/20 text-green-600">{isViewer ? 'Active Viewer' : 'Active Administrator'}</Badge>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-md border border-border p-3 md:col-span-2">
@@ -253,7 +253,8 @@ export default function AdminProfile() {
         </Card>
 
         {/* Security Card */}
-        <Card>
+        {!isViewer && (
+          <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">Security Settings</CardTitle>
             <CardDescription>Manage your password and admin secret key</CardDescription>
@@ -268,7 +269,8 @@ export default function AdminProfile() {
               Change Admin Secret Key
             </Button>
           </CardContent>
-        </Card>
+          </Card>
+        )}
 
         {/* Change Password Dialog */}
         <Dialog open={pwDialog} onOpenChange={setPwDialog}>
