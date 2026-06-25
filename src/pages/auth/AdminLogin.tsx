@@ -7,21 +7,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Shield, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Shield, KeyRound, Eye, EyeOff, Users, Crown, UserCheck } from 'lucide-react';
 import { supabase } from '@/db/supabase';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [adminSecret, setAdminSecret] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  const [showFkPassword, setShowFkPassword] = useState(false);
+  const [showFkNewKey, setShowFkNewKey] = useState(false);
+  const [showFkConfirmKey, setShowFkConfirmKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'principal' | 'main_admin' | 'viewer'>('principal');
 
   const roleLabels = {
     principal: 'Principal',
-    main_admin: 'Main Admin',
+    main_admin: 'Director',
     viewer: 'Viewer',
   } as const;
 
@@ -76,7 +81,7 @@ export default function AdminLogin() {
           const actualRoleLabel = loginProfile.role === 'admin'
             ? 'Principal (current admin account)'
             : loginProfile.role === 'main_admin'
-              ? 'Main Admin'
+              ? 'Director'
               : loginProfile.role === 'principal'
                 ? 'Principal'
                 : loginProfile.role === 'viewer'
@@ -212,30 +217,12 @@ export default function AdminLogin() {
           </div>
           <div>
             <CardTitle className="text-2xl font-playfair-display gradient-text">{`${selectedRoleLabel} Portal`}</CardTitle>
-            <CardDescription className="mt-2">G.D. Sawant College — LeaveSync</CardDescription>
+            <CardDescription className="mt-2">G.D. Sawant College — leaveSYNC</CardDescription>
           </div>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-              <Label htmlFor="loginRole" className="text-sm font-semibold">Select Login Role</Label>
-              <select
-                id="loginRole"
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value as 'principal' | 'main_admin' | 'viewer')}
-                disabled={loading}
-                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              >
-                <option value="principal">Principal — manages staff leaves and approvals</option>
-                <option value="main_admin">Main Admin — manages Principal leaves</option>
-                <option value="viewer">Viewer — read-only records and reports</option>
-              </select>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Current old admin accounts should select Principal for now. Main Admin accounts will work after creating a main_admin user.
-              </p>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="username">{`${selectedRoleLabel} Username`}</Label>
               <Input
@@ -250,16 +237,78 @@ export default function AdminLogin() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                className="px-3"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  className="px-3 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
+
+            <div className="space-y-2 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-primary/5 p-3 shadow-sm">
+              <Label htmlFor="loginRole" className="flex items-center gap-2 text-sm font-semibold">
+                <UserCheck className="h-4 w-4 text-primary" />
+                Select Role
+              </Label>
+              <Select
+                value={selectedRole}
+                onValueChange={(value) => setSelectedRole(value as 'principal' | 'main_admin' | 'viewer')}
+                disabled={loading}
+              >
+                <SelectTrigger id="loginRole" className="h-12 rounded-xl border-primary/30 bg-card/80 px-3 shadow-sm focus:ring-2 focus:ring-primary/30">
+                  <SelectValue placeholder="Choose login role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="principal">
+                    <div className="flex flex-col py-1">
+                      <span className="font-semibold">Principal</span>
+                      <span className="text-xs text-muted-foreground">Manages staff approvals and staff leaves</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="main_admin">
+                    <div className="flex flex-col py-1">
+                      <span className="font-semibold">Director</span>
+                      <span className="text-xs text-muted-foreground">Approves Principal leaves and monitors records</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="viewer">
+                    <div className="flex flex-col py-1">
+                      <span className="font-semibold">Viewer</span>
+                      <span className="text-xs text-muted-foreground">Read-only access to records and reports</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                <div className={`rounded-lg border p-2 ${selectedRole === 'principal' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-background/50'}`}>
+                  <Users className="mb-1 h-3.5 w-3.5 text-primary" />
+                  Staff flow
+                </div>
+                <div className={`rounded-lg border p-2 ${selectedRole === 'main_admin' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-background/50'}`}>
+                  <Crown className="mb-1 h-3.5 w-3.5 text-primary" />
+                  Director
+                </div>
+                <div className={`rounded-lg border p-2 ${selectedRole === 'viewer' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-background/50'}`}>
+                  <Shield className="mb-1 h-3.5 w-3.5 text-primary" />
+                  Read only
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="adminSecret" className="flex items-center gap-1">
@@ -316,7 +365,7 @@ export default function AdminLogin() {
               </div>
             ) : (
               <div className="text-center text-xs text-muted-foreground">
-                Main Admin and Viewer accounts are created by database/admin setup for controlled access.
+                Director and Viewer accounts are created by database/admin setup for controlled access.
               </div>
             )}
             <div className="flex items-center justify-center gap-4 text-sm">
@@ -369,15 +418,26 @@ export default function AdminLogin() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fk-password">Password</Label>
-                <Input
-                  id="fk-password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={fkPassword}
-                  onChange={(e) => setFkPassword(e.target.value)}
-                  disabled={fkLoading}
-                  className="px-3"
-                />
+                <div className="relative">
+                  <Input
+                    id="fk-password"
+                    type={showFkPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={fkPassword}
+                    onChange={(e) => setFkPassword(e.target.value)}
+                    disabled={fkLoading}
+                    className="px-3 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFkPassword(!showFkPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={showFkPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showFkPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={closeForgotDialog} disabled={fkLoading}>
@@ -396,27 +456,49 @@ export default function AdminLogin() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fk-newkey">New Secret Key</Label>
-                <Input
-                  id="fk-newkey"
-                  type="text"
-                  placeholder="Minimum 8 characters"
-                  value={fkNewKey}
-                  onChange={(e) => setFkNewKey(e.target.value)}
-                  disabled={fkLoading}
-                  className="px-3"
-                />
+                <div className="relative">
+                  <Input
+                    id="fk-newkey"
+                    type={showFkNewKey ? 'text' : 'password'}
+                    placeholder="Minimum 8 characters"
+                    value={fkNewKey}
+                    onChange={(e) => setFkNewKey(e.target.value)}
+                    disabled={fkLoading}
+                    className="px-3 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFkNewKey(!showFkNewKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={showFkNewKey ? 'Hide secret key' : 'Show secret key'}
+                  >
+                    {showFkNewKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fk-confirmkey">Confirm New Secret Key</Label>
-                <Input
-                  id="fk-confirmkey"
-                  type="text"
-                  placeholder="Re-enter new secret key"
-                  value={fkConfirmKey}
-                  onChange={(e) => setFkConfirmKey(e.target.value)}
-                  disabled={fkLoading}
-                  className="px-3"
-                />
+                <div className="relative">
+                  <Input
+                    id="fk-confirmkey"
+                    type={showFkConfirmKey ? 'text' : 'password'}
+                    placeholder="Re-enter new secret key"
+                    value={fkConfirmKey}
+                    onChange={(e) => setFkConfirmKey(e.target.value)}
+                    disabled={fkLoading}
+                    className="px-3 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFkConfirmKey(!showFkConfirmKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={showFkConfirmKey ? 'Hide secret key' : 'Show secret key'}
+                  >
+                    {showFkConfirmKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setFkStep('verify')} disabled={fkLoading}>
