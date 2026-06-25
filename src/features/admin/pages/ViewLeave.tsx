@@ -27,8 +27,15 @@ import {
 } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
 
+const formatLeaveDuration = (app: LeaveApplication) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
+
 export default function ViewLeave() {
-  const { profile } = useAuth();
+  const { profile, isViewer } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
@@ -152,7 +159,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            Review, approve or reject all staff leave applications
+            {isViewer ? 'View all staff leave applications in read-only mode' : 'Review, approve or reject all staff leave applications'}
           </p>
         </div>
 
@@ -227,7 +234,7 @@ export default function ViewLeave() {
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
             </CardTitle>
-            <CardDescription>Click Approve or Reject to act on a pending application</CardDescription>
+            <CardDescription>{isViewer ? 'Read-only view. Use filters to review records.' : 'Click Approve or Reject to act on a pending application'}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -249,10 +256,11 @@ export default function ViewLeave() {
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Leave Type</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">From</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">To</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Duration</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Days</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
                       <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">File</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Action</th>
+                      {!isViewer && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -272,6 +280,9 @@ export default function ViewLeave() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {format(new Date(app.end_date), 'dd MMM yyyy')}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                          {formatLeaveDuration(app)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-center">
                           {app.leave_days}
@@ -296,33 +307,35 @@ export default function ViewLeave() {
                             <span className="text-xs text-muted-foreground">None</span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3">
-                          {app.status === 'pending' ? (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                className="h-8 bg-green-600 text-white hover:bg-green-700"
-                                onClick={() => openDialog(app, 'approve')}
-                              >
-                                <CheckCircle className="mr-1 h-3.5 w-3.5" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="h-8"
-                                onClick={() => openDialog(app, 'reject')}
-                              >
-                                <XCircle className="mr-1 h-3.5 w-3.5" />
-                                Reject
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">
-                              {app.status === 'approved' ? 'Approved' : 'Rejected'}
-                            </span>
-                          )}
-                        </td>
+                        {!isViewer && (
+                          <td className="whitespace-nowrap px-4 py-3">
+                            {app.status === 'pending' ? (
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-8 bg-green-600 text-white hover:bg-green-700"
+                                  onClick={() => openDialog(app, 'approve')}
+                                >
+                                  <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-8"
+                                  onClick={() => openDialog(app, 'reject')}
+                                >
+                                  <XCircle className="mr-1 h-3.5 w-3.5" />
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">
+                                {app.status === 'approved' ? 'Approved' : 'Rejected'}
+                              </span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -334,7 +347,7 @@ export default function ViewLeave() {
       </div>
 
       {/* Approve / Reject Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {!isViewer && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-playfair-display gradient-text">
@@ -343,7 +356,7 @@ export default function ViewLeave() {
             <DialogDescription>
               {selectedApp?.staff?.full_name} &mdash;{' '}
               {selectedApp && format(new Date(selectedApp.start_date), 'dd MMM')} to{' '}
-              {selectedApp && format(new Date(selectedApp.end_date), 'dd MMM yyyy')} ({selectedApp?.leave_days} day
+              {selectedApp && format(new Date(selectedApp.end_date), 'dd MMM yyyy')} ({selectedApp && formatLeaveDuration(selectedApp)} • {selectedApp?.leave_days} day
               {(selectedApp?.leave_days ?? 0) !== 1 ? 's' : ''})
             </DialogDescription>
           </DialogHeader>
@@ -404,7 +417,7 @@ export default function ViewLeave() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </AdminLayout>
   );
 }
