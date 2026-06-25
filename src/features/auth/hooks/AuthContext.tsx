@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (adminSecret && !['admin', 'principal', 'main_admin', 'viewer'].includes(userProfile.role)) {
           await supabase.auth.signOut();
-          throw new Error('This account is not a principal/main admin/viewer account');
+          throw new Error('This account is not a principal/director/viewer account');
         }
 
         if (!adminSecret && userProfile.role !== 'staff') {
@@ -234,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const portalRoleLabel = isViewer
     ? 'Viewer'
     : isMainAdmin
-      ? 'Main Admin'
+      ? 'Director'
       : isPrincipal
         ? 'Principal'
         : isStaff
