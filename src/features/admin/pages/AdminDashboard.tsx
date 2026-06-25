@@ -13,7 +13,7 @@ import { supabase } from '@/db/supabase';
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
 export default function AdminDashboard() {
-  const { profile, isViewer } = useAuth();
+  const { profile, isViewer, portalRoleLabel } = useAuth();
   const { applications, loading } = useLeaveApplications();
   const { stats } = useLeaveStats();
   const [employeeCount, setEmployeeCount] = useState(0);
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
     <AdminLayout>
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{isViewer ? 'Viewer Dashboard' : 'Admin Dashboard'}</h1>
+          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
         </div>
 
