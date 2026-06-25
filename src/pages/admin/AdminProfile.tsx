@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function AdminProfile() {
-  const { profile, refreshProfile, isViewer } = useAuth();
+  const { profile, refreshProfile, isViewer, portalRoleLabel } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -191,7 +191,7 @@ export default function AdminProfile() {
         <Card className="gold-border">
           <CardHeader>
             <CardTitle className="font-playfair-display">Personal Information</CardTitle>
-            <CardDescription>{isViewer ? 'Viewer account details' : 'Administrator account details'}</CardDescription>
+            <CardDescription>{`${portalRoleLabel} account details`}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {editing ? (
@@ -221,7 +221,7 @@ export default function AdminProfile() {
                   { icon: Mail, label: 'Email', value: profile?.email || 'Not provided' },
                   { icon: Phone, label: 'Phone', value: profile?.phone || 'Not provided' },
                   { icon: MapPin, label: 'Address', value: profile?.address || 'Not provided' },
-                  { icon: Shield, label: 'Role', value: isViewer ? 'Viewer (Read Only)' : 'Administrator' },
+                  { icon: Shield, label: 'Role', value: isViewer ? 'Viewer (Read Only)' : portalRoleLabel },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 rounded-md border border-border p-3">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -235,7 +235,7 @@ export default function AdminProfile() {
                   <Shield className="h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Account Status</p>
-                    <Badge className="bg-green-600/20 text-green-600">{isViewer ? 'Active Viewer' : 'Active Administrator'}</Badge>
+                    <Badge className="bg-green-600/20 text-green-600">{isViewer ? 'Active Viewer' : `Active ${portalRoleLabel}`}</Badge>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-md border border-border p-3 md:col-span-2">
