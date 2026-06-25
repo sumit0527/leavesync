@@ -8,16 +8,26 @@ import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
 export default function AdminNotifications() {
-  const { profile, isViewer } = useAuth();
-  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(profile?.id);
+  const { profile } = useAuth();
+  const isViewer = profile?.role === 'viewer';
+  const isManagementRole = profile?.role === 'admin' || profile?.role === 'viewer';
+
+  // Admin and Viewer should see all system notifications.
+  // Staff notification page still uses own user_id only.
+  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
+    profile?.id,
+    isManagementRole ? 'all' : 'own'
+  );
+
+  const pageTitle = isViewer ? 'Viewer Notifications' : 'Admin Notifications';
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">Notifications</h1>
-            <p className="mt-2 text-muted-foreground">{isViewer ? 'View system notifications in read-only mode' : 'Stay updated on leave applications'}</p>
+            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
+            <p className="mt-2 text-muted-foreground">Stay updated on staff registrations and leave applications</p>
           </div>
           {!isViewer && notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
@@ -45,11 +55,11 @@ export default function AdminNotifications() {
             {notifications.map((notification) => (
               <Card
                 key={notification.id}
-                className={`${!isViewer ? 'cursor-pointer' : 'cursor-default'} transition-all ${!notification.is_read ? 'border-primary' : ''}`}
+                className={`transition-all ${!notification.is_read ? 'border-primary' : ''} ${!isViewer ? 'cursor-pointer' : ''}`}
                 onClick={() => !isViewer && !notification.is_read && markAsRead(notification.id)}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <CardTitle className="text-base">{notification.title}</CardTitle>
                     {!notification.is_read && <Badge variant="default">New</Badge>}
                   </div>
