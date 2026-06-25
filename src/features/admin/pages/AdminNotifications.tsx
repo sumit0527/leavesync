@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
 export default function AdminNotifications() {
-  const { profile } = useAuth();
+  const { profile, isViewer } = useAuth();
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(profile?.id);
 
   return (
@@ -17,9 +17,9 @@ export default function AdminNotifications() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Notifications</h1>
-            <p className="mt-2 text-muted-foreground">Stay updated on leave applications</p>
+            <p className="mt-2 text-muted-foreground">{isViewer ? 'View system notifications in read-only mode' : 'Stay updated on leave applications'}</p>
           </div>
-          {notifications.some(n => !n.is_read) && (
+          {!isViewer && notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -45,8 +45,8 @@ export default function AdminNotifications() {
             {notifications.map((notification) => (
               <Card
                 key={notification.id}
-                className={`cursor-pointer transition-all ${!notification.is_read ? 'border-primary' : ''}`}
-                onClick={() => !notification.is_read && markAsRead(notification.id)}
+                className={`${!isViewer ? 'cursor-pointer' : 'cursor-default'} transition-all ${!notification.is_read ? 'border-primary' : ''}`}
+                onClick={() => !isViewer && !notification.is_read && markAsRead(notification.id)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
