@@ -18,7 +18,11 @@ export interface AuthContextType {
   isAdmin: boolean;
   isStaff: boolean;
   isViewer: boolean;
+  isPrincipal: boolean;
+  isMainAdmin: boolean;
+  isLegacyAdmin: boolean;
   isManagementUser: boolean;
+  portalRoleLabel: string;
 }
 
 // Singleton context — created once, never re-created
