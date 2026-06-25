@@ -17,7 +17,15 @@ export default function AdminLogin() {
   const [adminSecret, setAdminSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'viewer'>('admin');
+  const [selectedRole, setSelectedRole] = useState<'principal' | 'main_admin' | 'viewer'>('principal');
+
+  const roleLabels = {
+    principal: 'Principal',
+    main_admin: 'Main Admin',
+    viewer: 'Viewer',
+  } as const;
+
+  const selectedRoleLabel = roleLabels[selectedRole];
 
   // Forgot secret key dialog state
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -57,16 +65,31 @@ export default function AdminLogin() {
         .eq('id', userId)
         .maybeSingle();
 
-      if (loginProfile?.role && loginProfile.role !== selectedRole) {
-        await supabase.auth.signOut();
-        setLoading(false);
-        toast.error(`This is a ${loginProfile.role} account. Please select ${loginProfile.role === 'viewer' ? 'Viewer' : 'Admin'} and try again.`);
-        return;
+      if (loginProfile?.role) {
+        const allowedRoles = selectedRole === 'principal'
+          ? ['principal', 'admin']
+          : [selectedRole];
+
+        if (!allowedRoles.includes(loginProfile.role)) {
+          await supabase.auth.signOut();
+          setLoading(false);
+          const actualRoleLabel = loginProfile.role === 'admin'
+            ? 'Principal (current admin account)'
+            : loginProfile.role === 'main_admin'
+              ? 'Main Admin'
+              : loginProfile.role === 'principal'
+                ? 'Principal'
+                : loginProfile.role === 'viewer'
+                  ? 'Viewer'
+                  : loginProfile.role;
+          toast.error(`This is a ${actualRoleLabel} account. Please select the correct role and try again.`);
+          return;
+        }
       }
     }
 
     setLoading(false);
-    toast.success(selectedRole === 'viewer' ? 'Viewer login successful!' : 'Admin login successful!');
+    toast.success(`${selectedRoleLabel} login successful!`);
     navigate('/admin/dashboard');
   };
 
@@ -93,9 +116,9 @@ export default function AdminLogin() {
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (!profile || profile.role !== 'admin') {
+      if (!profile || !['admin', 'principal', 'main_admin'].includes(profile.role)) {
         await supabase.auth.signOut();
-        throw new Error('This account does not have admin privileges');
+        throw new Error('This account does not have management privileges');
       }
       if (profile.approval_status !== 'approved') {
         await supabase.auth.signOut();
@@ -145,7 +168,7 @@ export default function AdminLogin() {
 
       if (error) throw new Error('Failed to update secret key: ' + error.message);
 
-      toast.success('Admin secret key updated successfully!');
+      toast.success('Management secret key updated successfully!');
       setForgotOpen(false);
       setFkStep('verify');
       setFkUsername(''); setFkPassword(''); setFkNewKey(''); setFkConfirmKey('');
@@ -188,7 +211,7 @@ export default function AdminLogin() {
             />
           </div>
           <div>
-            <CardTitle className="text-2xl font-playfair-display gradient-text">{selectedRole === 'viewer' ? 'Viewer Portal' : 'Admin Portal'}</CardTitle>
+            <CardTitle className="text-2xl font-playfair-display gradient-text">{`${selectedRoleLabel} Portal`}</CardTitle>
             <CardDescription className="mt-2">G.D. Sawant College — LeaveSync</CardDescription>
           </div>
         </CardHeader>
@@ -196,42 +219,29 @@ export default function AdminLogin() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-              <Label className="text-sm font-semibold">Login Role</Label>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('admin')}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                    selectedRole === 'admin'
-                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                      : 'border-border bg-card hover:bg-muted'
-                  }`}
-                >
-                  <span className="block font-semibold">Admin</span>
-                  <span className="block text-[11px] text-muted-foreground">isAdmin: full access</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('viewer')}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                    selectedRole === 'viewer'
-                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                      : 'border-border bg-card hover:bg-muted'
-                  }`}
-                >
-                  <span className="block font-semibold">Viewer</span>
-                  <span className="block text-[11px] text-muted-foreground">isViewer: read only</span>
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">Choose the correct role before login. Admin can modify data; Viewer can only view records.</p>
+              <Label htmlFor="loginRole" className="text-sm font-semibold">Select Login Role</Label>
+              <select
+                id="loginRole"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as 'principal' | 'main_admin' | 'viewer')}
+                disabled={loading}
+                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="principal">Principal — manages staff leaves and approvals</option>
+                <option value="main_admin">Main Admin — manages Principal leaves</option>
+                <option value="viewer">Viewer — read-only records and reports</option>
+              </select>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Current old admin accounts should select Principal for now. Main Admin accounts will work after creating a main_admin user.
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="username">{selectedRole === 'viewer' ? 'Viewer Username' : 'Admin Username'}</Label>
+              <Label htmlFor="username">{`${selectedRoleLabel} Username`}</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder={selectedRole === 'viewer' ? 'Enter viewer username' : 'Enter admin username'}
+                placeholder={`Enter ${selectedRoleLabel.toLowerCase()} username`}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
@@ -254,9 +264,9 @@ export default function AdminLogin() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="adminSecret" className="flex items-center gap-1">
                   <Shield className="h-3.5 w-3.5 text-primary" />
-                  Admin Secret Key
+                  Management Secret Key
                 </Label>
-                {selectedRole === 'admin' ? (
+                {selectedRole !== 'viewer' ? (
                   <button
                     type="button"
                     onClick={() => setForgotOpen(true)}
@@ -273,7 +283,7 @@ export default function AdminLogin() {
                 <Input
                   id="adminSecret"
                   type={showSecret ? 'text' : 'password'}
-                  placeholder="Enter admin secret key"
+                  placeholder="Enter management secret key"
                   value={adminSecret}
                   onChange={(e) => setAdminSecret(e.target.value)}
                   disabled={loading}
@@ -288,25 +298,25 @@ export default function AdminLogin() {
                   {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">Required for {selectedRole === 'viewer' ? 'viewer read-only access' : 'admin access'}</p>
+              <p className="text-xs text-muted-foreground">Required for {selectedRole === 'viewer' ? 'viewer read-only access' : `${selectedRoleLabel.toLowerCase()} access`}</p>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {selectedRole === 'viewer' ? 'Viewer Sign In' : 'Admin Sign In'}
+              {`${selectedRoleLabel} Sign In`}
             </Button>
-            {selectedRole === 'admin' ? (
+            {selectedRole === 'principal' ? (
               <div className="text-center text-sm">
-                Don't have an admin account?{' '}
+                Don't have a principal account?{' '}
                 <Link to="/admin/register" className="text-primary hover:underline">
                   Register here
                 </Link>
               </div>
             ) : (
               <div className="text-center text-xs text-muted-foreground">
-                Viewer accounts are created by admin for read-only access.
+                Main Admin and Viewer accounts are created by database/admin setup for controlled access.
               </div>
             )}
             <div className="flex items-center justify-center gap-4 text-sm">
@@ -338,19 +348,19 @@ export default function AdminLogin() {
             </DialogTitle>
             <DialogDescription>
               {fkStep === 'verify'
-                ? 'Enter your admin username and password to verify your identity before resetting the secret key.'
-                : 'Create a new admin secret key. All admins will need to use this new key to log in.'}
+                ? 'Enter your management username and password to verify your identity before resetting the secret key.'
+                : 'Create a new management secret key. All management users will need to use this new key to log in.'}
             </DialogDescription>
           </DialogHeader>
 
           {fkStep === 'verify' ? (
             <form onSubmit={handleForgotVerify} className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label htmlFor="fk-username">Admin Username</Label>
+                <Label htmlFor="fk-username">Management Username</Label>
                 <Input
                   id="fk-username"
                   type="text"
-                  placeholder="Enter your admin username"
+                  placeholder="Enter your management username"
                   value={fkUsername}
                   onChange={(e) => setFkUsername(e.target.value)}
                   disabled={fkLoading}
