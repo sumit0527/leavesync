@@ -50,7 +50,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const accountRoleText = isViewer
     ? 'Viewer (Read Only)'
     : isMainAdmin
-      ? 'Main Admin'
+      ? 'Director'
       : isPrincipal
         ? 'Principal'
         : 'Management User';
