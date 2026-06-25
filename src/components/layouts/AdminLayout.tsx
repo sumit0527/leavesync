@@ -42,9 +42,18 @@ const navigation = [
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut, isViewer } = useAuth();
+  const { profile, signOut, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { unreadCount } = useNotifications(profile?.id);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const portalTitle = `${portalRoleLabel} Portal`;
+  const accountRoleText = isViewer
+    ? 'Viewer (Read Only)'
+    : isMainAdmin
+      ? 'Main Admin'
+      : isPrincipal
+        ? 'Principal'
+        : 'Management User';
 
   const handleSignOut = async () => {
     await signOut();
@@ -68,7 +77,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{portalTitle}</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </Link>
@@ -109,7 +118,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="mb-3 rounded-md bg-sidebar-accent p-3">
           <p className="text-sm font-medium text-sidebar-foreground">{profile?.full_name}</p>
           <p className="text-xs text-muted-foreground">@{profile?.username}</p>
-          <p className="mt-2 text-xs text-primary">{isViewer ? 'Viewer (Read Only)' : 'Administrator'}</p>
+          <p className="mt-2 text-xs text-primary">{accountRoleText}</p>
         </div>
         <Button
           variant="ghost"
@@ -147,7 +156,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               to="/admin/dashboard"
               className="font-playfair-display text-base font-semibold gradient-text truncate"
             >
-              {isViewer ? 'Viewer Portal' : 'Admin Portal'}
+              {portalTitle}
             </Link>
           </div>
           <Link
@@ -161,7 +170,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="h-10 w-10 object-contain"
             />
             <div>
-              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">{isViewer ? 'Viewer Portal' : 'Admin Portal'}</h1>
+              <h1 className="font-playfair-display text-lg font-bold gradient-text leading-none">{portalTitle}</h1>
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
           </Link>
