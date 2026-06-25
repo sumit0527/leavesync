@@ -8,15 +8,14 @@ import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
 export default function AdminNotifications() {
-  const { profile } = useAuth();
-  const isViewer = profile?.role === 'viewer';
-  const isManagementRole = profile?.role === 'admin' || profile?.role === 'viewer';
+  const { profile, portalRoleLabel, isViewer, isManagementUser } = useAuth();
 
-  // Admin and Viewer should see all system notifications.
+  // Management roles (Principal/Main Admin/legacy Admin/Viewer) can view all system notifications.
   // Staff notification page still uses own user_id only.
+
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
     profile?.id,
-    isManagementRole ? 'all' : 'own'
+    isManagementUser ? 'all' : 'own'
   );
 
   const pageTitle = `${portalRoleLabel} Notifications`;
