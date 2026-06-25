@@ -20,7 +20,7 @@ export default function EmployeeApproval() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
-  const { profile } = useAuth();
+  const { profile, isViewer } = useAuth();
 
   useEffect(() => {
     fetchEmployees();
@@ -222,7 +222,7 @@ export default function EmployeeApproval() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Employee Management</h1>
-          <p className="text-muted-foreground mt-2">Review staff registrations, manage current staff, and keep past employee records safely</p>
+          <p className="text-muted-foreground mt-2">{isViewer ? 'View staff records and approval status in read-only mode' : 'Review staff registrations, manage current staff, and keep past employee records safely'}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -270,7 +270,7 @@ export default function EmployeeApproval() {
                   <Users className="h-5 w-5" />
                   Employees
                 </CardTitle>
-                <CardDescription>Use Past Employees for staff who left college without deleting history</CardDescription>
+                <CardDescription>{isViewer ? 'Read-only employee records' : 'Use Past Employees for staff who left college without deleting history'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
@@ -302,7 +302,7 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
-                      <th className="text-left p-3 whitespace-nowrap">Action</th>
+                      {!isViewer && <th className="text-left p-3 whitespace-nowrap">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -323,7 +323,8 @@ export default function EmployeeApproval() {
                             {employee.exited_at ? new Date(employee.exited_at).toLocaleDateString() : '-'}
                           </td>
                         )}
-                        <td className="p-3 whitespace-nowrap">
+{!isViewer && (
+                                                  <td className="p-3 whitespace-nowrap">
                           {activeTab === 'past' ? (
                             <Button
                               size="sm"
@@ -372,6 +373,7 @@ export default function EmployeeApproval() {
                             </Button>
                           )}
                         </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
