@@ -12,7 +12,7 @@ export interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signInWithUsername: (username: string, password: string, adminSecret?: string) => Promise<{ error: Error | null }>;
-  signUpWithUsername: (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string) => Promise<{ error: Error | null }>;
+  signUpWithUsername: (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin') => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   isAdmin: boolean;
