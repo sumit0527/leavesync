@@ -9,9 +9,11 @@ import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useHolidays } from '@/hooks/use-holidays';
 import { supabase } from '@/db/supabase';
 import { format, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun, Plus, Trash2, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun, Plus, Trash2, Loader2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 
 interface LeavesOnDate {
   staffName: string;
@@ -19,9 +21,47 @@ interface LeavesOnDate {
   leaveType: string;
 }
 
+type DirectorReportScope = 'staff' | 'principal';
+type DirectorReportFormat = 'pdf' | 'excel';
+
+interface DirectorReportRow {
+  name: string;
+  department: string;
+  email: string;
+  phone: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  duration: string;
+  status: string;
+  handledBy: string;
+  createdDate: string;
+  leaveBalance: string;
+}
+
+const formatLeaveDuration = (app: any) => {
+  if (app?.leave_duration === 'half_day') {
+    return app?.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
+
+const formatDateOnly = (value?: string | null) => {
+  if (!value) return 'N/A';
+  return format(new Date(`${value}T00:00:00`), 'dd/MM/yyyy');
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return 'N/A';
+  return format(new Date(value), 'dd/MM/yyyy HH:mm');
+};
+
+const clean = (value: unknown) => (value === null || value === undefined || value === '' ? 'N/A' : String(value));
+
 export default function AdminCalendar() {
-  const { isViewer, isPrincipal } = useAuth();
+  const { isViewer, isPrincipal, isMainAdmin } = useAuth();
   const isCalendarReadOnly = isViewer || isPrincipal;
+  const canDownloadDirectorReports = isMainAdmin;
   const { applications } = useLeaveApplications();
   const { holidays, refetch: refetchHolidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -31,6 +71,7 @@ export default function AdminCalendar() {
   const [holidayDate, setHolidayDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [savingHoliday, setSavingHoliday] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState<string | null>(null);
 
   const approvedLeaves = applications.filter(app => app.status === 'approved');
 
@@ -70,6 +111,200 @@ export default function AdminCalendar() {
     setSelectedDate(date);
     setHolidayDate(format(date, 'yyyy-MM-dd'));
     setSelectedDayLeaves(getLeavesOnDate(date));
+  };
+
+  const buildBalanceMap = (allocations: any[]) => {
+    const map = new Map<string, string>();
+    allocations.forEach(a => {
+      const name = a.leave_type?.name ?? 'Leave';
+      const total = Number(a.total_allocated ?? 0);
+      const used = Number(a.used ?? 0);
+      const remaining = Number(a.remaining ?? (total - used));
+      const current = map.get(a.staff_id);
+      const part = `${name}: Total ${total}, Used ${used}, Left ${remaining}`;
+      map.set(a.staff_id, current ? `${current}; ${part}` : part);
+    });
+    return map;
+  };
+
+  const getDirectorReportRows = async (scope: DirectorReportScope): Promise<DirectorReportRow[]> => {
+    const roles = scope === 'staff' ? ['staff'] : ['principal', 'admin'];
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('*, department:departments(*)')
+      .in('role', roles)
+      .order('full_name', { ascending: true });
+
+    if (profileError) throw profileError;
+
+    const people = Array.isArray(profiles) ? profiles : [];
+    const ids = people.map((p: any) => p.id).filter(Boolean);
+    if (ids.length === 0) return [];
+
+    const { data: leaveRows, error: leaveError } = await supabase
+      .from('leave_applications')
+      .select(`
+        *,
+        staff:profiles!leave_applications_staff_id_fkey(*, department:departments(*)),
+        reviewer:profiles!leave_applications_reviewed_by_fkey(id, username, full_name),
+        leave_type:leave_types(*)
+      `)
+      .in('staff_id', ids)
+      .order('created_at', { ascending: false });
+
+    if (leaveError) throw leaveError;
+
+    const { data: allocationRows, error: allocationError } = await supabase
+      .from('staff_leave_allocations')
+      .select('*, leave_type:leave_types(id, name)')
+      .in('staff_id', ids)
+      .eq('year', new Date().getFullYear());
+
+    if (allocationError) throw allocationError;
+
+    const balanceMap = buildBalanceMap(Array.isArray(allocationRows) ? allocationRows : []);
+    const appsByStaff = new Map<string, any[]>();
+    (Array.isArray(leaveRows) ? leaveRows : []).forEach((app: any) => {
+      const list = appsByStaff.get(app.staff_id) ?? [];
+      list.push(app);
+      appsByStaff.set(app.staff_id, list);
+    });
+
+    return people.flatMap((person: any) => {
+      const personApps = appsByStaff.get(person.id) ?? [];
+      const baseBalance = balanceMap.get(person.id) ?? `Overall Balance: ${person.leave_balance ?? 'N/A'}`;
+      if (personApps.length === 0) {
+        return [{
+          name: clean(person.full_name),
+          department: scope === 'staff' ? clean(person.department?.name) : 'N/A',
+          email: clean(person.email),
+          phone: clean(person.phone),
+          leaveType: 'No leave applications',
+          startDate: 'N/A',
+          endDate: 'N/A',
+          duration: 'N/A',
+          status: clean(person.approval_status),
+          handledBy: 'N/A',
+          createdDate: formatDateTime(person.created_at),
+          leaveBalance: baseBalance,
+        }];
+      }
+
+      return personApps.map((app: any) => ({
+        name: clean(person.full_name),
+        department: scope === 'staff' ? clean(person.department?.name ?? app.staff?.department?.name) : 'N/A',
+        email: clean(person.email),
+        phone: clean(person.phone),
+        leaveType: clean(app.leave_type?.name),
+        startDate: formatDateOnly(app.start_date),
+        endDate: formatDateOnly(app.end_date),
+        duration: `${formatLeaveDuration(app)} (${app.leave_days ?? 0} day${Number(app.leave_days ?? 0) === 1 ? '' : 's'})`,
+        status: clean(app.status),
+        handledBy: app.reviewer?.full_name ? clean(app.reviewer.full_name) : app.status === 'pending' ? 'Pending Review' : 'N/A',
+        createdDate: formatDateTime(app.created_at),
+        leaveBalance: baseBalance,
+      }));
+    });
+  };
+
+  const exportDirectorReportExcel = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
+    const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
+    const aoa = [
+      ['LeaveSync', title],
+      ['Generated At', format(new Date(), 'dd/MM/yyyy HH:mm')],
+      [],
+      ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
+      ...rows.map(r => [r.name, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, r.leaveBalance]),
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+      { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 48 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, scope === 'staff' ? 'Staff Report' : 'Principal Report');
+    XLSX.writeFile(wb, `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const exportDirectorReportPDF = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
+    const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 32;
+    let y = 36;
+
+    const drawHeader = () => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('LeaveSync', margin, y);
+      doc.setFontSize(13);
+      doc.text(title, margin, y + 18);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 150, y + 18);
+      y += 40;
+      doc.setDrawColor(180);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 16;
+    };
+
+    const drawRow = (row: DirectorReportRow, index: number) => {
+      if (y > pageHeight - 95) {
+        doc.addPage();
+        y = 36;
+        drawHeader();
+      }
+      doc.setFillColor(index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 248 : 255);
+      doc.rect(margin, y - 10, pageWidth - margin * 2, 70, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(`${index + 1}. ${row.name}`, margin + 8, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Dept: ${row.department}`, margin + 8, y + 14);
+      doc.text(`Email: ${row.email}`, margin + 8, y + 28);
+      doc.text(`Phone: ${row.phone}`, margin + 8, y + 42);
+      doc.text(`Leave: ${row.leaveType}`, margin + 245, y);
+      doc.text(`Dates: ${row.startDate} to ${row.endDate}`, margin + 245, y + 14);
+      doc.text(`Duration: ${row.duration}`, margin + 245, y + 28);
+      doc.text(`Status: ${row.status}`, margin + 245, y + 42);
+      doc.text(`Handled By: ${row.handledBy}`, margin + 500, y);
+      doc.text(`Created: ${row.createdDate}`, margin + 500, y + 14);
+      const balanceLines = doc.splitTextToSize(`Balance: ${row.leaveBalance}`, pageWidth - margin - 500 - 10);
+      doc.text(balanceLines.slice(0, 3), margin + 500, y + 28);
+      y += 76;
+    };
+
+    drawHeader();
+    if (rows.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('No records found.', margin, y);
+    } else {
+      rows.forEach(drawRow);
+    }
+    doc.save(`${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDirectorReportDownload = async (scope: DirectorReportScope, fileFormat: DirectorReportFormat) => {
+    if (!canDownloadDirectorReports) {
+      toast.error('Only Director can download these reports');
+      return;
+    }
+    const loadingKey = `${scope}-${fileFormat}`;
+    setReportLoading(loadingKey);
+    try {
+      const rows = await getDirectorReportRows(scope);
+      if (fileFormat === 'excel') exportDirectorReportExcel(rows, scope);
+      else exportDirectorReportPDF(rows, scope);
+      toast.success(`${scope === 'staff' ? 'Staff' : 'Principal'} report downloaded`);
+    } catch (err) {
+      console.error('Director report download failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to download report');
+    } finally {
+      setReportLoading(null);
+    }
   };
 
   const handleAddHoliday = async () => {
@@ -146,6 +381,53 @@ export default function AdminCalendar() {
           <p className="mt-2 text-muted-foreground">{isCalendarReadOnly ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
         </div>
 
+        {canDownloadDirectorReports && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <Download className="h-4 w-4 text-primary" />
+                Director Reports
+              </CardTitle>
+              <CardDescription>
+                Download staff-side activity handled by Principal and Principal leave/activity details for Director review.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-sm font-semibold">Staff Details Report</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Complete staff details with leave status, full/half day details, handler and balances.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('staff', 'pdf')} disabled={!!reportLoading}>
+                      {reportLoading === 'staff-pdf' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-2 h-3.5 w-3.5" />}
+                      PDF
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('staff', 'excel')} disabled={!!reportLoading}>
+                      {reportLoading === 'staff-excel' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />}
+                      Excel
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-sm font-semibold">Principal Details Report</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Principal details with leave status, full/half day details, Director handler and balances.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('principal', 'pdf')} disabled={!!reportLoading}>
+                      {reportLoading === 'principal-pdf' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-2 h-3.5 w-3.5" />}
+                      PDF
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('principal', 'excel')} disabled={!!reportLoading}>
+                      {reportLoading === 'principal-excel' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />}
+                      Excel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="md:col-span-2">
             <CardHeader>
@@ -221,22 +503,22 @@ export default function AdminCalendar() {
                   <CardTitle className="flex items-center gap-2 text-sm font-medium">
                     <Plus className="h-4 w-4 text-primary" />
                     Add College Holiday
-                </CardTitle>
-                <CardDescription>Select a date or click a day from calendar</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="holidayDate">Date</Label>
-                  <Input id="holidayDate" type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="holidayName">Holiday Name</Label>
-                  <Input id="holidayName" placeholder="e.g. Ganesh Chaturthi" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} />
-                </div>
-                <Button className="w-full" onClick={handleAddHoliday} disabled={savingHoliday}>
-                  {savingHoliday ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  Save Holiday
-                </Button>
+                  </CardTitle>
+                  <CardDescription>Select a date or click a day from calendar</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="holidayDate">Date</Label>
+                    <Input id="holidayDate" type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="holidayName">Holiday Name</Label>
+                    <Input id="holidayName" placeholder="e.g. Ganesh Chaturthi" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} />
+                  </div>
+                  <Button className="w-full" onClick={handleAddHoliday} disabled={savingHoliday}>
+                    {savingHoliday ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    Save Holiday
+                  </Button>
                 </CardContent>
               </Card>
             )}
