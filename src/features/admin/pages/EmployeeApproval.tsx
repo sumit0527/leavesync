@@ -21,20 +21,32 @@ export default function EmployeeApproval() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
-  const canManageStaff = isPrincipal && !isViewer;
+  const isDirectorManagingPrincipals = isMainAdmin;
+  const managedRoleLabel = isDirectorManagingPrincipals ? 'Principal' : 'Staff';
+  const managedRoleLabelPlural = isDirectorManagingPrincipals ? 'Principals' : 'Employees';
+  const canManageStaff = (isPrincipal || isMainAdmin) && !isViewer;
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [isMainAdmin]);
 
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('*, department:departments(*)')
-        .eq('role', 'staff')
         .order('created_at', { ascending: false });
+
+      if (isMainAdmin) {
+        // Director verifies Principal registrations. Legacy role 'admin' is treated as Principal.
+        query = query.in('role', ['principal', 'admin']);
+      } else {
+        // Principal/Viewer see staff records here.
+        query = query.eq('role', 'staff');
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       if (data) setEmployees(data as unknown as EmployeeRecord[]);
@@ -88,11 +100,11 @@ export default function EmployeeApproval() {
         }).catch((err: unknown) => console.error('Email notification failed:', err));
       }
 
-      toast.success('Employee approved successfully');
+      toast.success(`${managedRoleLabel} approved successfully`);
       fetchEmployees();
     } catch (err) {
       console.error('Failed to approve employee:', err);
-      toast.error('Failed to approve employee');
+      toast.error(`Failed to approve ${managedRoleLabel.toLowerCase()}`);
     } finally {
       setProcessingId(null);
     }
@@ -133,11 +145,11 @@ export default function EmployeeApproval() {
         }).catch((err: unknown) => console.error('Email notification failed:', err));
       }
 
-      toast.success('Employee rejected');
+      toast.success(`${managedRoleLabel} rejected`);
       fetchEmployees();
     } catch (err) {
       console.error('Failed to reject employee:', err);
-      toast.error('Failed to reject employee');
+      toast.error(`Failed to reject ${managedRoleLabel.toLowerCase()}`);
     } finally {
       setProcessingId(null);
     }
@@ -145,7 +157,7 @@ export default function EmployeeApproval() {
 
   const handleMoveToPast = async (employee: EmployeeRecord) => {
     if (!profile?.id || !canManageStaff) return;
-    if (!window.confirm(`Move ${employee.full_name} to Past Employees? Their old leave records will stay saved.`)) return;
+    if (!window.confirm(`Move ${employee.full_name} to Past ${managedRoleLabelPlural}? Their old leave records will stay saved.`)) return;
 
     setProcessingId(employee.id);
     try {
@@ -161,11 +173,11 @@ export default function EmployeeApproval() {
         .eq('id', employee.id);
 
       if (error) throw error;
-      toast.success('Employee moved to Past Employees');
+      toast.success(`${managedRoleLabel} moved to Past ${managedRoleLabelPlural}`);
       fetchEmployees();
     } catch (err) {
       console.error('Failed to move employee:', err);
-      toast.error('Failed to move employee');
+      toast.error(`Failed to move ${managedRoleLabel.toLowerCase()}`);
     } finally {
       setProcessingId(null);
     }
@@ -173,7 +185,7 @@ export default function EmployeeApproval() {
 
   const handleRestoreEmployee = async (employee: EmployeeRecord) => {
     if (!profile?.id || !canManageStaff) return;
-    if (!window.confirm(`Restore ${employee.full_name} as current employee?`)) return;
+    if (!window.confirm(`Restore ${employee.full_name} as current ${managedRoleLabel.toLowerCase()}?`)) return;
 
     setProcessingId(employee.id);
     try {
@@ -191,18 +203,18 @@ export default function EmployeeApproval() {
         .eq('id', employee.id);
 
       if (error) throw error;
-      toast.success('Employee restored');
+      toast.success(`${managedRoleLabel} restored`);
       fetchEmployees();
     } catch (err) {
       console.error('Failed to restore employee:', err);
-      toast.error('Failed to restore employee');
+      toast.error(`Failed to restore ${managedRoleLabel.toLowerCase()}`);
     } finally {
       setProcessingId(null);
     }
   };
 
   const getStatusBadge = (status: string, employmentStatus?: string) => {
-    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">Past Employee</Badge>;
+    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{isDirectorManagingPrincipals ? 'Past Principal' : 'Past Employee'}</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600">Approved</Badge>;
@@ -222,14 +234,14 @@ export default function EmployeeApproval() {
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-playfair-display font-bold gradient-text">Employee Management</h1>
-          <p className="text-muted-foreground mt-2">{canManageStaff ? 'Review staff registrations, manage current staff, and keep past employee records safely' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
+          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isDirectorManagingPrincipals ? 'Principal Management' : 'Employee Management'}</h1>
+          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : canManageStaff ? 'Review staff registrations, manage current staff, and keep past employee records safely' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">Current Employees</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Current Principals' : 'Current Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold sm:text-2xl">{currentEmployees.length}</div>
@@ -255,7 +267,7 @@ export default function EmployeeApproval() {
           </Card>
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">Past Employees</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Past Principals' : 'Past Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold text-slate-600 sm:text-2xl">{pastEmployees.length}</div>
@@ -269,16 +281,16 @@ export default function EmployeeApproval() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Employees
+                  {isDirectorManagingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
-                <CardDescription>{canManageStaff ? 'Use Past Employees for staff who left college without deleting history' : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
+                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canManageStaff ? 'Use Past Employees for staff who left college without deleting history' : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
-                  Current Employees
+                  {isDirectorManagingPrincipals ? 'Current Principals' : 'Current Employees'}
                 </Button>
                 <Button size="sm" variant={activeTab === 'past' ? 'default' : 'ghost'} onClick={() => setActiveTab('past')}>
-                  Past Employees
+                  {isDirectorManagingPrincipals ? 'Past Principals' : 'Past Employees'}
                 </Button>
               </div>
             </div>
@@ -290,7 +302,7 @@ export default function EmployeeApproval() {
               </div>
             ) : visibleEmployees.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {activeTab === 'current' ? 'No current employees found' : 'No past employees found'}
+                {activeTab === 'current' ? `No current ${managedRoleLabel.toLowerCase()}s found` : `No past ${managedRoleLabel.toLowerCase()}s found`}
               </div>
             ) : (
               <div className="w-full min-w-0 overflow-x-auto">
@@ -303,7 +315,7 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
-                      {canManageStaff && <th className="text-left p-3 whitespace-nowrap">Principal Action</th>}
+                      {canManageStaff && <th className="text-left p-3 whitespace-nowrap">{isDirectorManagingPrincipals ? 'Director Action' : 'Principal Action'}</th>}
                     </tr>
                   </thead>
                   <tbody>
