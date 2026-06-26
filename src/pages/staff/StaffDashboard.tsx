@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
 export default function StaffDashboard() {
-  const { profile } = useAuth();
+  const { profile, isPrincipal } = useAuth();
   const { stats } = useLeaveStats(profile?.id);
 
   const dashboardCards = [
@@ -30,8 +30,8 @@ export default function StaffDashboard() {
     <StaffLayout>
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl md:text-3xl font-playfair-display font-bold gradient-text">Welcome, {profile?.full_name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage your leave applications and track your leave balance</p>
+          <h1 className="text-2xl md:text-3xl font-playfair-display font-bold gradient-text">{isPrincipal ? 'Principal Leave Dashboard' : `Welcome, ${profile?.full_name}`}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{isPrincipal ? 'Apply for your own leave and track your Principal leave balance' : 'Manage your leave applications and track your leave balance'}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4">
@@ -55,7 +55,7 @@ export default function StaffDashboard() {
         <Card className={`${compactCardClass} gold-border`}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="font-playfair-display text-lg">Quick Actions</CardTitle>
-            <CardDescription className="text-xs">Use these shortcuts to finish common work faster</CardDescription>
+            <CardDescription className="text-xs">{isPrincipal ? 'Principal self-service shortcuts' : 'Use these shortcuts to finish common work faster'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4">
