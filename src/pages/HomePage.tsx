@@ -263,7 +263,7 @@ export default function HomePage() {
           </div>
 
           {/* Title */}
-          <h1 className="font-playfair-display text-[2.6rem] sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-[3px] sm:tracking-[6px] md:tracking-[8px] uppercase shimmer-text mb-3 sm:mb-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <h1 className="font-playfair-display text-[2.6rem] sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-[3px] sm:tracking-[6px] md:tracking-[8px] shimmer-text mb-3 sm:mb-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
             leaveSYNC
           </h1>
 
