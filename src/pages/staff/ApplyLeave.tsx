@@ -25,7 +25,7 @@ type LeaveDuration = 'full_day' | 'half_day';
 type HalfDayPeriod = 'first_half' | 'second_half';
 
 export default function ApplyLeave() {
-  const { profile } = useAuth();
+  const { profile, isPrincipal } = useAuth();
   const navigate = useNavigate();
   const { isValidLeaveDate } = useHolidays();
   const { leaveTypes } = useLeaveTypes();
@@ -43,11 +43,10 @@ export default function ApplyLeave() {
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [balanceDialogMessage, setBalanceDialogMessage] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [principalEmail, setPrincipalEmail] = useState('');
 
   useEffect(() => {
     fetchPrincipalEmail();
-  }, []);
+  }, [isPrincipal]);
 
   useEffect(() => {
     if (leaveTypeId && profile?.id) {
@@ -69,29 +68,30 @@ export default function ApplyLeave() {
   }, [leaveDuration, startDate]);
 
   const fetchPrincipalEmail = async () => {
-    const { data: principal } = await supabase
+    const targetRoles = isPrincipal ? ['main_admin'] : ['admin', 'principal'];
+    const fallbackKey = isPrincipal ? 'director_email' : 'admin_email';
+
+    const { data: approver } = await supabase
       .from('profiles')
       .select('email')
-      .in('role', ['admin', 'principal'])
+      .in('role', targetRoles)
       .eq('approval_status', 'approved')
       .not('email', 'is', null)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    if (principal?.email) {
-      setPrincipalEmail(principal.email);
-      setAdminEmail(principal.email);
+    if (approver?.email) {
+      setAdminEmail(approver.email);
       return;
     }
 
     const { data } = await supabase
       .from('admin_settings')
       .select('value')
-      .eq('key', 'admin_email')
+      .eq('key', fallbackKey)
       .maybeSingle();
     if (data?.value) {
-      setPrincipalEmail(data.value);
       setAdminEmail(data.value);
     }
   };
@@ -156,10 +156,11 @@ export default function ApplyLeave() {
   };
 
   const openExtraLeaveEmail = () => {
-    const to = adminEmail || 'admin@example.com';
-    const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? 'Staff'} - ${selectedLeaveType?.name ?? 'Leave'}`);
+    const to = adminEmail || (isPrincipal ? 'director@example.com' : 'principal@example.com');
+    const approvalRoleLabel = isPrincipal ? 'Director' : 'Principal';
+    const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`);
     const body = encodeURIComponent(
-      `Dear Principal,\n\nI request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.\n\nStaff Details:\nName: ${profile?.full_name ?? ''}\nUsername: ${profile?.username ?? ''}\nPhone: ${profile?.phone ?? ''}\nDepartment: ${profile?.department?.name ?? 'N/A'}\n\nRequested Leave Details:\nLeave Type: ${selectedLeaveType?.name ?? 'N/A'}\nRequested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}\nDuration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}\nAvailable Balance: ${availableBalance} day(s)\n\nReason:\n${reason.trim() || 'Please type your detailed reason here.'}\n\nRegards,\n${profile?.full_name ?? ''}`
+      `${`Dear ${approvalRoleLabel},`}\n\nI request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.\n\n${isPrincipal ? 'Principal Details' : 'Staff Details'}:\nName: ${profile?.full_name ?? ''}\nUsername: ${profile?.username ?? ''}\nPhone: ${profile?.phone ?? ''}\nDepartment: ${profile?.department?.name ?? 'N/A'}\n\nRequested Leave Details:\nLeave Type: ${selectedLeaveType?.name ?? 'N/A'}\nRequested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}\nDuration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}\nAvailable Balance: ${availableBalance} day(s)\n\nReason:\n${reason.trim() || 'Please type your detailed reason here.'}\n\nRegards,\n${profile?.full_name ?? ''}`
     );
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   };
@@ -273,8 +274,8 @@ export default function ApplyLeave() {
     <StaffLayout>
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <h1 className="text-3xl font-playfair-display font-bold gradient-text">Apply for Leave</h1>
-          <p className="mt-2 text-muted-foreground">Submit a new leave application</p>
+          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isPrincipal ? 'Principal Leave Application' : 'Apply for Leave'}</h1>
+          <p className="mt-2 text-muted-foreground">{isPrincipal ? 'Submit your own leave request to Director' : 'Submit a new leave application to Principal'}</p>
         </div>
 
         <Card className="gold-border">
@@ -446,7 +447,7 @@ export default function ApplyLeave() {
             <DialogDescription>{balanceDialogMessage}</DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-            If this leave is urgent, you can request extra approval by sending an email to the admin with your reason and supporting details.
+            {isPrincipal ? 'If this leave is urgent, you can request extra approval by sending an email to the Director with your reason and supporting details.' : 'If this leave is urgent, you can request extra approval by sending an email to the Principal with your reason and supporting details.'}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>Close</Button>
