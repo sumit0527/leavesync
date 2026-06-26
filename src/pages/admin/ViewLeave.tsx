@@ -132,6 +132,14 @@ export default function ViewLeave() {
     }
   };
 
+  const formatReviewSummary = (app: LeaveApplication) => {
+    if (app.status === 'pending') return 'Waiting for Principal action';
+    const actionText = app.status === 'approved' ? 'Approved' : 'Rejected';
+    const reviewerName = app.reviewer?.full_name || app.reviewer?.username || 'Principal';
+    const actionDate = app.reviewed_at ? format(new Date(app.reviewed_at), 'dd MMM yyyy') : '';
+    return `${actionText} by ${reviewerName}${actionDate ? ` on ${actionDate}` : ''}`;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -261,6 +269,7 @@ export default function ViewLeave() {
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Duration</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Days</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Handled By</th>
                       <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">File</th>
                       {canManageStaffLeaves && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Principal Action</th>}
                     </tr>
@@ -291,6 +300,9 @@ export default function ViewLeave() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {getStatusBadge(app.status)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                          {formatReviewSummary(app)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-center">
                           {app.document_url ? (
@@ -333,7 +345,7 @@ export default function ViewLeave() {
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground italic">
-                                {app.status === 'approved' ? 'Approved' : 'Rejected'}
+                                {formatReviewSummary(app)}
                               </span>
                             )}
                           </td>
