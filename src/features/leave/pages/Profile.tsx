@@ -18,7 +18,7 @@ import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
 
 
 export default function Profile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, isPrincipal } = useAuth();
   const { stats } = useLeaveStats(profile?.id);
   const { allocations, loading: allocationsLoading } = useLeaveAllocations(profile?.id);
 
@@ -103,7 +103,7 @@ export default function Profile() {
       email: profile?.email || '',
       phone: profile?.phone || '',
       address: profile?.address || '',
-      role: profile?.role === 'admin' ? 'Administrator' : 'Staff Member',
+      role: isPrincipal ? 'Principal' : 'Staff Member',
       stats,
       allocations: allocations.map(a => ({
         leave_type: a.leave_type?.name || 'N/A',
@@ -215,7 +215,7 @@ export default function Profile() {
               </div>
             ) : allocations.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No leave allocations found. Please contact administration.
+                No leave allocations found. Please contact the Director/administration office.
               </div>
             ) : (
               <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
