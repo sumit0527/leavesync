@@ -26,7 +26,7 @@ const formatLeaveDuration = (app: any) => {
 };
 
 export default function LeaveHistory() {
-  const { profile } = useAuth();
+  const { profile, isPrincipal } = useAuth();
   const { applications, loading } = useLeaveApplications(profile?.id);
   const [filter, setFilter] = useState('all');
 
@@ -77,11 +77,12 @@ export default function LeaveHistory() {
     y += 18;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Staff: ${profile?.full_name || 'Staff'} | Filter: ${filterLabel}`, margin, y);
+    doc.text(`${isPrincipal ? 'Principal' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal' : 'Staff')} | Filter: ${filterLabel}`, margin, y);
     doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 160, y);
     y += 22;
 
-    const headers = ['#', 'Leave Type', 'Start', 'End', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
+    const reviewerLabel = isPrincipal ? 'Director Response' : 'Principal Response';
+    const headers = ['#', 'Leave Type', 'Start', 'End', 'Duration', 'Days', 'Status', 'Reason', reviewerLabel];
     const widths = [28, 92, 64, 64, 96, 38, 64, 190, 180];
     const drawHeader = () => {
       let x = margin;
@@ -192,7 +193,7 @@ export default function LeaveHistory() {
                   </div>
                   {app.admin_response && (
                     <div>
-                      <p className="text-sm font-medium">Admin Response:</p>
+                      <p className="text-sm font-medium">{isPrincipal ? 'Director Response:' : 'Principal Response:'}</p>
                       <p className="text-sm text-muted-foreground">{app.admin_response}</p>
                     </div>
                   )}
