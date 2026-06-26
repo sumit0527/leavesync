@@ -341,7 +341,6 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Name</th>
                       <th className="text-left p-3 whitespace-nowrap">Email</th>
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
-                      <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
                       <th className="text-left p-3 whitespace-nowrap">Handled By</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
@@ -359,7 +358,6 @@ export default function EmployeeApproval() {
                         </td>
                         <td className="p-3 whitespace-nowrap">{employee.email || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.phone || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{employee.department?.name || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{getStatusBadge(employee.approval_status, employee.employment_status)}</td>
                         <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">{formatAccountAction(employee)}</td>
                         {activeTab === 'past' && (
