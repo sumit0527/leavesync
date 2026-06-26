@@ -35,8 +35,10 @@ const formatLeaveDuration = (app: LeaveApplication) => {
 };
 
 export default function ViewLeave() {
-  const { profile, isViewer } = useAuth();
+  const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
+  const canManageStaffLeaves = isPrincipal && !isViewer;
+  const isDirectorReadOnly = isMainAdmin;
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
 
@@ -67,7 +69,7 @@ export default function ViewLeave() {
   };
 
   const handleConfirm = async () => {
-    if (!selectedApp || !profile) return;
+    if (!selectedApp || !profile || !canManageStaffLeaves) return;
     setProcessing(true);
     try {
       const newStatus = action === 'approve' ? 'approved' : 'rejected';
@@ -97,7 +99,7 @@ export default function ViewLeave() {
         user_id: selectedApp.staff_id,
         title: `Leave ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
         message: response
-          ? `Your leave application has been ${newStatus}. Admin note: ${response}`
+          ? `Your leave application has been ${newStatus}. Principal note: ${response}`
           : `Your leave application has been ${newStatus}.`,
         type: `leave_${newStatus}`,
         related_application_id: selectedApp.id,
@@ -159,7 +161,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View all staff leave applications in read-only mode' : 'Review, approve or reject all staff leave applications'}
+            {isViewer ? 'View all staff leave applications in read-only mode' : isDirectorReadOnly ? 'Monitor staff leave applications handled by Principal' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -234,7 +236,7 @@ export default function ViewLeave() {
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
             </CardTitle>
-            <CardDescription>{isViewer ? 'Read-only view. Use filters to review records.' : 'Click Approve or Reject to act on a pending application'}</CardDescription>
+            <CardDescription>{canManageStaffLeaves ? 'Click Approve or Reject to act on a pending staff application' : `${portalRoleLabel} read-only monitoring view. Principal handles staff approvals.`}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -260,7 +262,7 @@ export default function ViewLeave() {
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Days</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
                       <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">File</th>
-                      {!isViewer && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Action</th>}
+                      {canManageStaffLeaves && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Principal Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -307,7 +309,7 @@ export default function ViewLeave() {
                             <span className="text-xs text-muted-foreground">None</span>
                           )}
                         </td>
-                        {!isViewer && (
+                        {canManageStaffLeaves && (
                           <td className="whitespace-nowrap px-4 py-3">
                             {app.status === 'pending' ? (
                               <div className="flex items-center gap-2">
@@ -347,7 +349,7 @@ export default function ViewLeave() {
       </div>
 
       {/* Approve / Reject Dialog */}
-      {!isViewer && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {canManageStaffLeaves && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-playfair-display gradient-text">
@@ -382,7 +384,7 @@ export default function ViewLeave() {
 
             <div className="space-y-1">
               <Label htmlFor="admin-response">
-                Admin Response <span className="text-muted-foreground">(optional)</span>
+                Principal Response <span className="text-muted-foreground">(optional)</span>
               </Label>
               <Textarea
                 id="admin-response"
