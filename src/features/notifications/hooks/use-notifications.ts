@@ -4,6 +4,41 @@ import type { Notification } from '@/types';
 
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
 
+function isDirectorOnlyNotification(notification: Notification) {
+  const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+  return (
+    text.includes('director') ||
+    text.includes('main admin') ||
+    text.includes('main_admin') ||
+    text.includes('principal registration') ||
+    text.includes('principal leave')
+  );
+}
+
+function isPrincipalOnlyNotification(notification: Notification) {
+  const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+  return text.includes('principal') && !text.includes('staff');
+}
+
+function filterNotificationsByScope(rows: Notification[], scope: NotificationScope) {
+  if (scope === 'principal') {
+    return rows.filter((notification) => {
+      const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+      const isStaffRelated = text.includes('staff') || notification.type === 'staff_registration_pending' || notification.type === 'staff_leave_pending';
+      return isStaffRelated && !isDirectorOnlyNotification(notification) && !isPrincipalOnlyNotification(notification);
+    });
+  }
+
+  if (scope === 'director') {
+    return rows.filter((notification) => {
+      const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+      return text.includes('principal') || notification.type === 'principal_registration_pending' || notification.type === 'principal_leave_pending';
+    });
+  }
+
+  return rows;
+}
+
 export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -43,8 +78,9 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
         rows = (data ?? []) as Notification[];
       }
 
-      setNotifications(rows);
-      setUnreadCount(rows.filter(n => !n.is_read).length);
+      const scopedRows = filterNotificationsByScope(rows, scope);
+      setNotifications(scopedRows);
+      setUnreadCount(scopedRows.filter(n => !n.is_read).length);
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
 
@@ -57,7 +93,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
           .order('created_at', { ascending: false })
           .limit(100);
 
-        const fallbackRows = (data ?? []) as Notification[];
+        const fallbackRows = filterNotificationsByScope((data ?? []) as Notification[], scope);
         setNotifications(fallbackRows);
         setUnreadCount(fallbackRows.filter(n => !n.is_read).length);
       } else {
