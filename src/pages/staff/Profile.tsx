@@ -25,7 +25,7 @@ import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
 
 
 export default function Profile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, isPrincipal } = useAuth();
   const { stats } = useLeaveStats(profile?.id);
   const { allocations, loading: allocationsLoading } = useLeaveAllocations(profile?.id);
 
@@ -110,7 +110,7 @@ export default function Profile() {
       email: profile?.email || '',
       phone: profile?.phone || '',
       address: profile?.address || '',
-      role: profile?.role === 'admin' ? 'Administrator' : 'Staff Member',
+      role: isPrincipal ? 'Principal' : 'Staff Member',
       stats,
       allocations: allocations.map(a => ({
         leave_type: a.leave_type?.name || 'N/A',
@@ -128,7 +128,7 @@ export default function Profile() {
     let y = 45;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.text('LeaveSync - Staff Profile Report', margin, y);
+    doc.text(`LeaveSync - ${isPrincipal ? 'Principal' : 'Staff'} Profile Report`, margin, y);
     y += 24;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
@@ -141,7 +141,7 @@ export default function Profile() {
       ['Email', profile?.email || '-'],
       ['Phone', profile?.phone || '-'],
       ['Address', profile?.address || '-'],
-      ['Role', profile?.role === 'admin' ? 'Administrator' : 'Staff Member'],
+      ['Role', isPrincipal ? 'Principal' : 'Staff Member'],
     ];
     doc.setFont('helvetica', 'bold');
     doc.text('Profile Details', margin, y);
@@ -287,7 +287,7 @@ export default function Profile() {
               </div>
             ) : allocations.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No leave allocations found for {new Date().getFullYear()}. Please contact administration.
+                No leave allocations found for {new Date().getFullYear()}. Please contact the Director/administration office.
               </div>
             ) : (
               <div className="grid gap-3 grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-3">
