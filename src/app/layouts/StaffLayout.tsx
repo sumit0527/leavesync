@@ -60,7 +60,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isPrincipal ? 'Principal Self Leave' : 'leaveSYNC'}</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isPrincipal ? 'Principal Leave Portal' : 'leaveSYNC'}</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </Link>
@@ -73,7 +73,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             onClick={() => setMobileMenuOpen(false)}
             className="mb-3 flex items-center justify-center rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
           >
-            Back to Management View
+            Back to Principal Management
           </Link>
         )}
 
