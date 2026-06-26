@@ -105,6 +105,25 @@ export default function AdminDashboard() {
           <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
         </div>
 
+        {isPrincipal && !isViewer && (
+          <Card className="rounded-xl border-primary/30 bg-primary/5 shadow-sm">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-primary">Principal Mode</p>
+                <p className="text-xs text-muted-foreground">
+                  Use Management View for staff approvals. Switch to My Leave View to apply for your own leave like staff.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <Button size="sm" variant="default" className="h-9">Management View</Button>
+                <Button size="sm" variant="outline" className="h-9" asChild>
+                  <Link to="/staff/dashboard">My Leave View</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3 lg:grid-cols-6">
           {dashboardCards.map((item) => {
             const Icon = item.icon;
@@ -126,7 +145,7 @@ export default function AdminDashboard() {
         <Card className={compactCardClass}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="font-playfair-display text-lg">Quick Actions</CardTitle>
-            <CardDescription className="text-xs">{isViewer ? 'Read-only shortcuts for records and reports' : 'Compact shortcuts for director work'}</CardDescription>
+            <CardDescription className="text-xs">{isViewer ? 'Read-only shortcuts for records and reports' : isPrincipal ? 'Staff management shortcuts' : 'Compact shortcuts for director work'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
