@@ -20,7 +20,8 @@ interface LeavesOnDate {
 }
 
 export default function AdminCalendar() {
-  const { isViewer } = useAuth();
+  const { isViewer, isPrincipal } = useAuth();
+  const isCalendarReadOnly = isViewer || isPrincipal;
   const { applications } = useLeaveApplications();
   const { holidays, refetch: refetchHolidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -72,6 +73,10 @@ export default function AdminCalendar() {
   };
 
   const handleAddHoliday = async () => {
+    if (isCalendarReadOnly) {
+      toast.error('Only Director can add or update holidays');
+      return;
+    }
     if (!holidayDate) {
       toast.error('Please select holiday date');
       return;
@@ -103,6 +108,10 @@ export default function AdminCalendar() {
   };
 
   const handleDeleteHoliday = async (holidayId: string) => {
+    if (isCalendarReadOnly) {
+      toast.error('Only Director can delete holidays');
+      return;
+    }
     if (!window.confirm('Remove this holiday from calendar?')) return;
 
     setDeletingHolidayId(holidayId);
@@ -134,7 +143,7 @@ export default function AdminCalendar() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Calendar</h1>
-          <p className="mt-2 text-muted-foreground">{isViewer ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
+          <p className="mt-2 text-muted-foreground">{isCalendarReadOnly ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -206,7 +215,7 @@ export default function AdminCalendar() {
           </Card>
 
           <div className="space-y-4">
-            {!isViewer && (
+            {!isCalendarReadOnly && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -250,7 +259,7 @@ export default function AdminCalendar() {
                           <Sun className="h-4 w-4 text-destructive shrink-0" />
                           <span className="truncate text-xs font-medium text-destructive">{getHolidayName(selectedDate)}</span>
                         </div>
-                        {!isViewer && (
+                        {!isCalendarReadOnly && (
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(selectedHoliday.id)} disabled={deletingHolidayId === selectedHoliday.id}>
                             {deletingHolidayId === selectedHoliday.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                           </Button>
@@ -294,7 +303,7 @@ export default function AdminCalendar() {
                           <p className="text-xs font-medium">{h.name}</p>
                           <p className="text-[11px] text-muted-foreground">{format(new Date(`${h.date}T00:00:00`), 'dd MMM yyyy')}</p>
                         </div>
-                        {!isViewer && (
+                        {!isCalendarReadOnly && (
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteHoliday(h.id)} disabled={deletingHolidayId === h.id}>
                             {deletingHolidayId === h.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                           </Button>
