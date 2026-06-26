@@ -15,7 +15,8 @@ import type { Department } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Departments() {
-  const { isViewer } = useAuth();
+  const { isViewer, isPrincipal } = useAuth();
+  const isConfigReadOnly = isViewer || isPrincipal;
   const { departments, loading, refetch } = useDepartments();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function Departments() {
   const [description, setDescription] = useState('');
 
   const handleCreate = () => {
+    if (isConfigReadOnly) return;
     setEditingDept(null);
     setName('');
     setDescription('');
@@ -34,6 +36,7 @@ export default function Departments() {
   };
 
   const handleEdit = (dept: Department) => {
+    if (isConfigReadOnly) return;
     setEditingDept(dept);
     setName(dept.name);
     setDescription(dept.description || '');
@@ -41,11 +44,16 @@ export default function Departments() {
   };
 
   const handleDelete = (dept: Department) => {
+    if (isConfigReadOnly) return;
     setDeletingDept(dept);
     setDeleteDialogOpen(true);
   };
 
   const handleSubmit = async () => {
+    if (isConfigReadOnly) {
+      toast.error('Only Director can modify departments');
+      return;
+    }
     if (!name.trim()) {
       toast.error('Department name is required');
       return;
@@ -87,6 +95,10 @@ export default function Departments() {
   };
 
   const confirmDelete = async () => {
+    if (isConfigReadOnly) {
+      toast.error('Only Director can delete departments');
+      return;
+    }
     if (!deletingDept) return;
 
     setProcessing(true);
@@ -128,9 +140,9 @@ export default function Departments() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Departments</h1>
-            <p className="mt-2 text-muted-foreground">{isViewer ? 'View college departments' : 'Manage college departments'}</p>
+            <p className="mt-2 text-muted-foreground">{isConfigReadOnly ? 'View college departments' : 'Manage college departments'}</p>
           </div>
-          {!isViewer && (
+          {!isConfigReadOnly && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               Add Department
@@ -150,7 +162,7 @@ export default function Departments() {
             <CardContent className="p-8 text-center">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">No departments found</p>
-              {!isViewer && (
+              {!isConfigReadOnly && (
                 <Button onClick={handleCreate} className="mt-4">
                   <Plus className="mr-2 h-4 w-4" />
                   Create First Department
@@ -165,7 +177,7 @@ export default function Departments() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <Building2 className="h-8 w-8 text-primary" />
-                    {!isViewer && (
+                    {!isConfigReadOnly && (
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
