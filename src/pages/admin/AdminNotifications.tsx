@@ -12,7 +12,7 @@ export default function AdminNotifications() {
 
   // Principal and Director see notifications assigned to their own account.
   // Viewer can see all notifications in read-only mode for record checking.
-  const notificationScope = isViewer ? 'all' : 'own';
+  const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : 'own';
 
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
     profile?.id,
@@ -29,7 +29,7 @@ export default function AdminNotifications() {
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
             <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'Director notifications for Principal-level approvals and monitoring' : isPrincipal ? 'Principal notifications for staff registrations and staff leave applications' : 'Read-only notification records'}</p>
           </div>
-          {!isViewer && notifications.some(n => !n.is_read) && (
+          {!isViewer && notifications.some(n => !n.is_read && n.user_id === profile?.id) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -55,8 +55,8 @@ export default function AdminNotifications() {
             {notifications.map((notification) => (
               <Card
                 key={notification.id}
-                className={`transition-all ${!notification.is_read ? 'border-primary' : ''} ${!isViewer ? 'cursor-pointer' : ''}`}
-                onClick={() => !isViewer && !notification.is_read && markAsRead(notification.id)}
+                className={`transition-all ${!notification.is_read ? 'border-primary' : ''} ${!isViewer && notification.user_id === profile?.id ? 'cursor-pointer' : ''}`}
+                onClick={() => !isViewer && notification.user_id === profile?.id && !notification.is_read && markAsRead(notification.id)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
