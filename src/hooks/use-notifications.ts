@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
 import type { Notification } from '@/types';
 
-export type NotificationScope = 'own' | 'all';
+export type NotificationScope = 'own' | 'all' | 'principal';
 
 export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -10,7 +10,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = useCallback(async () => {
-    if (scope === 'own' && !userId) {
+    if ((scope === 'own' || scope === 'principal') && !userId) {
       setNotifications([]);
       setUnreadCount(0);
       setLoading(false);
@@ -26,10 +26,13 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
         .order('created_at', { ascending: false })
         .limit(100);
 
-      // Staff should see only their own notifications.
-      // Admin/Viewer notification page can pass scope='all' to see all system notifications.
+      // Staff/Director should see only their own notifications.
+      // Principal should also see staff-related notifications, even if older rows were created before role changes.
+      // Viewer can pass scope='all' to see all records in read-only mode.
       if (scope === 'own') {
         query = query.eq('user_id', userId);
+      } else if (scope === 'principal') {
+        query = query.or(`user_id.eq.${userId},type.in.(staff_registration_pending,staff_leave_pending,new_staff_registration,staff_registration,leave_application,staff_leave_application)`);
       }
 
       const { data, error } = await query;
@@ -71,7 +74,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   };
 
   const markAllAsRead = async () => {
-    if (scope === 'own' && !userId) return;
+    if ((scope === 'own' || scope === 'principal') && !userId) return;
 
     try {
       let query = supabase
@@ -79,7 +82,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
         .update({ is_read: true })
         .eq('is_read', false);
 
-      if (scope === 'own') {
+      if (scope === 'own' || scope === 'principal') {
         query = query.eq('user_id', userId);
       }
 
