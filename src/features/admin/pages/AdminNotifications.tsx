@@ -12,7 +12,7 @@ export default function AdminNotifications() {
 
   // Principal and Director see notifications assigned to their own account.
   // Viewer can see all notifications in read-only mode for record checking.
-  const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : 'own';
+  const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : isMainAdmin ? 'director' : 'own';
 
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
     profile?.id,
