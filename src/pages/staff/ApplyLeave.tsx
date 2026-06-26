@@ -43,9 +43,10 @@ export default function ApplyLeave() {
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [balanceDialogMessage, setBalanceDialogMessage] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [principalEmail, setPrincipalEmail] = useState('');
 
   useEffect(() => {
-    fetchAdminEmail();
+    fetchPrincipalEmail();
   }, []);
 
   useEffect(() => {
@@ -67,13 +68,32 @@ export default function ApplyLeave() {
     }
   }, [leaveDuration, startDate]);
 
-  const fetchAdminEmail = async () => {
+  const fetchPrincipalEmail = async () => {
+    const { data: principal } = await supabase
+      .from('profiles')
+      .select('email')
+      .in('role', ['admin', 'principal'])
+      .eq('approval_status', 'approved')
+      .not('email', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (principal?.email) {
+      setPrincipalEmail(principal.email);
+      setAdminEmail(principal.email);
+      return;
+    }
+
     const { data } = await supabase
       .from('admin_settings')
       .select('value')
       .eq('key', 'admin_email')
       .maybeSingle();
-    if (data?.value) setAdminEmail(data.value);
+    if (data?.value) {
+      setPrincipalEmail(data.value);
+      setAdminEmail(data.value);
+    }
   };
 
   const fetchLeaveBalance = async () => {
@@ -139,7 +159,7 @@ export default function ApplyLeave() {
     const to = adminEmail || 'admin@example.com';
     const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? 'Staff'} - ${selectedLeaveType?.name ?? 'Leave'}`);
     const body = encodeURIComponent(
-      `Dear Admin,\n\nI request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.\n\nStaff Details:\nName: ${profile?.full_name ?? ''}\nUsername: ${profile?.username ?? ''}\nPhone: ${profile?.phone ?? ''}\nDepartment: ${profile?.department?.name ?? 'N/A'}\n\nRequested Leave Details:\nLeave Type: ${selectedLeaveType?.name ?? 'N/A'}\nRequested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}\nDuration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}\nAvailable Balance: ${availableBalance} day(s)\n\nReason:\n${reason.trim() || 'Please type your detailed reason here.'}\n\nRegards,\n${profile?.full_name ?? ''}`
+      `Dear Principal,\n\nI request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.\n\nStaff Details:\nName: ${profile?.full_name ?? ''}\nUsername: ${profile?.username ?? ''}\nPhone: ${profile?.phone ?? ''}\nDepartment: ${profile?.department?.name ?? 'N/A'}\n\nRequested Leave Details:\nLeave Type: ${selectedLeaveType?.name ?? 'N/A'}\nRequested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}\nDuration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}\nAvailable Balance: ${availableBalance} day(s)\n\nReason:\n${reason.trim() || 'Please type your detailed reason here.'}\n\nRegards,\n${profile?.full_name ?? ''}`
     );
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   };
