@@ -8,14 +8,15 @@ import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
 export default function AdminNotifications() {
-  const { profile, portalRoleLabel, isViewer, isManagementUser } = useAuth();
+  const { profile, portalRoleLabel, isViewer, isPrincipal, isMainAdmin } = useAuth();
 
-  // Management roles (Principal/Director/legacy Admin/Viewer) can view all system notifications.
-  // Staff notification page still uses own user_id only.
+  // Principal and Director see notifications assigned to their own account.
+  // Viewer can see all notifications in read-only mode for record checking.
+  const notificationScope = isViewer ? 'all' : 'own';
 
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
     profile?.id,
-    isManagementUser ? 'all' : 'own'
+    notificationScope
   );
 
   const pageTitle = `${portalRoleLabel} Notifications`;
@@ -26,7 +27,7 @@ export default function AdminNotifications() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
-            <p className="mt-2 text-muted-foreground">Stay updated on staff registrations and leave applications</p>
+            <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'Director notifications for Principal-level approvals and monitoring' : isPrincipal ? 'Principal notifications for staff registrations and staff leave applications' : 'Read-only notification records'}</p>
           </div>
           {!isViewer && notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
