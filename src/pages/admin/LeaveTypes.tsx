@@ -16,7 +16,8 @@ import type { LeaveType } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LeaveTypes() {
-  const { isViewer } = useAuth();
+  const { isViewer, isPrincipal } = useAuth();
+  const isConfigReadOnly = isViewer || isPrincipal;
   const { leaveTypes, loading, refetch } = useLeaveTypes();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -30,6 +31,7 @@ export default function LeaveTypes() {
   const [requiresDocument, setRequiresDocument] = useState(false);
 
   const handleCreate = () => {
+    if (isConfigReadOnly) return;
     setEditingType(null);
     setName('');
     setDescription('');
@@ -39,6 +41,7 @@ export default function LeaveTypes() {
   };
 
   const handleEdit = (type: LeaveType) => {
+    if (isConfigReadOnly) return;
     setEditingType(type);
     setName(type.name);
     setDescription(type.description || '');
@@ -48,11 +51,16 @@ export default function LeaveTypes() {
   };
 
   const handleDelete = (type: LeaveType) => {
+    if (isConfigReadOnly) return;
     setDeletingType(type);
     setDeleteDialogOpen(true);
   };
 
   const handleSubmit = async () => {
+    if (isConfigReadOnly) {
+      toast.error('Only Director can modify leave types');
+      return;
+    }
     if (!name.trim()) {
       toast.error('Leave type name is required');
       return;
@@ -104,6 +112,10 @@ export default function LeaveTypes() {
   };
 
   const confirmDelete = async () => {
+    if (isConfigReadOnly) {
+      toast.error('Only Director can delete leave types');
+      return;
+    }
     if (!deletingType) return;
 
     setProcessing(true);
@@ -145,9 +157,9 @@ export default function LeaveTypes() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Types</h1>
-            <p className="mt-2 text-muted-foreground">{isViewer ? 'View leave type configurations' : 'Manage leave type configurations'}</p>
+            <p className="mt-2 text-muted-foreground">{isConfigReadOnly ? 'View leave type configurations' : 'Manage leave type configurations'}</p>
           </div>
-          {!isViewer && (
+          {!isConfigReadOnly && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               Add Leave Type
@@ -167,7 +179,7 @@ export default function LeaveTypes() {
             <CardContent className="p-8 text-center">
               <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">No leave types found</p>
-              {!isViewer && (
+              {!isConfigReadOnly && (
                 <Button onClick={handleCreate} className="mt-4">
                   <Plus className="mr-2 h-4 w-4" />
                   Create First Leave Type
@@ -182,7 +194,7 @@ export default function LeaveTypes() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <Calendar className="h-8 w-8 text-primary" />
-                    {!isViewer && (
+                    {!isConfigReadOnly && (
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
