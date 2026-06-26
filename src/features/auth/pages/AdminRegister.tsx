@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Loader2, Shield } from 'lucide-react';
+import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 
 export default function AdminRegister() {
   const [username, setUsername] = useState('');
@@ -16,9 +16,12 @@ export default function AdminRegister() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [adminSecret, setAdminSecret] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signUpWithUsername, signInWithUsername } = useAuth();
+  const { signUpWithUsername } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,25 +53,38 @@ export default function AdminRegister() {
     }
 
     setLoading(true);
-    const { error } = await signUpWithUsername(username, password, fullName, '', '', '', '', adminSecret);
+    const { error } = await signUpWithUsername(
+      username,
+      password,
+      fullName,
+      '',
+      '',
+      '',
+      '',
+      adminSecret,
+      'principal'
+    );
+    setLoading(false);
 
     if (error) {
-      setLoading(false);
       toast.error(error.message);
       return;
     }
 
-    const { error: loginError } = await signInWithUsername(username, password, adminSecret);
-    setLoading(false);
-
-    if (loginError) {
-      toast.success('Admin registration successful! Please login.');
-      navigate('/admin/login');
-    } else {
-      toast.success('Admin registration successful!');
-      navigate('/admin/dashboard');
-    }
+    toast.success('Principal registration submitted! Director approval is required before login.');
+    navigate('/admin/login');
   };
+
+  const PasswordToggle = ({ show, onClick }: { show: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      tabIndex={-1}
+    >
+      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
+  );
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center p-4">
@@ -78,7 +94,7 @@ export default function AdminRegister() {
       <div className="absolute inset-0 -z-10 opacity-20">
         <img
           src="https://miaoda-site-img.s3cdn.medo.dev/images/KLing_e87ef494-02d6-4d5f-b79a-57897a413594.jpg"
-          alt="Admin Office"
+          alt="Principal Office"
           className="h-full w-full object-contain p-2"
         />
       </div>
@@ -89,19 +105,25 @@ export default function AdminRegister() {
             <Shield className="h-12 w-12 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-playfair-display gradient-text">Admin Registration</CardTitle>
-            <CardDescription className="mt-2">Create your admin account</CardDescription>
+            <CardTitle className="text-2xl font-playfair-display gradient-text">Principal Registration</CardTitle>
+            <CardDescription className="mt-2">
+              Register as Principal. Director approval is required before login.
+            </CardDescription>
           </div>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+              Only two approved Principal accounts are allowed. After registration, a Director must approve this account.
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
                 id="fullName"
                 type="text"
-                placeholder="Enter your full name"
+                placeholder="Enter principal full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 disabled={loading}
@@ -124,42 +146,51 @@ export default function AdminRegister() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Create a password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                className="px-3"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Create a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  className="px-3 pr-10"
+                />
+                <PasswordToggle show={showPassword} onClick={() => setShowPassword((prev) => !prev)} />
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={loading}
-                className="px-3"
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={loading}
+                  className="px-3 pr-10"
+                />
+                <PasswordToggle show={showConfirmPassword} onClick={() => setShowConfirmPassword((prev) => !prev)} />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="adminSecret">Admin Secret Key</Label>
-              <Input
-                id="adminSecret"
-                type="password"
-                placeholder="Enter admin secret key"
-                value={adminSecret}
-                onChange={(e) => setAdminSecret(e.target.value)}
-                disabled={loading}
-                className="px-3"
-              />
-              <p className="text-xs text-muted-foreground">Contact college administration for the secret key</p>
+              <Label htmlFor="adminSecret">Management Secret Key</Label>
+              <div className="relative">
+                <Input
+                  id="adminSecret"
+                  type={showSecret ? 'text' : 'password'}
+                  placeholder="Enter management secret key"
+                  value={adminSecret}
+                  onChange={(e) => setAdminSecret(e.target.value)}
+                  disabled={loading}
+                  className="px-3 pr-10"
+                />
+                <PasswordToggle show={showSecret} onClick={() => setShowSecret((prev) => !prev)} />
+              </div>
+              <p className="text-xs text-muted-foreground">Contact Director/college administration for the secret key</p>
             </div>
 
             <div className="flex items-start space-x-2">
@@ -178,7 +209,7 @@ export default function AdminRegister() {
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Register as Admin
+              Submit Principal Registration
             </Button>
 
             <div className="text-center text-sm">
