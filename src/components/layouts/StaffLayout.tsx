@@ -34,7 +34,7 @@ const navigation = [
 export default function StaffLayout({ children }: StaffLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isPrincipal } = useAuth();
   const { unreadCount } = useNotifications(profile?.id);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -60,13 +60,23 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
             />
           </div>
           <div>
-            <h2 className="font-playfair-display text-lg font-semibold gradient-text">leaveSYNC</h2>
+            <h2 className="font-playfair-display text-lg font-semibold gradient-text">{isPrincipal ? 'Principal Self Leave' : 'leaveSYNC'}</h2>
             <p className="text-xs text-sidebar-foreground">G.D Sawant College</p>
           </div>
         </Link>
       </div>
 
       <nav className="flex-1 space-y-1 p-4">
+        {isPrincipal && (
+          <Link
+            to="/admin/dashboard"
+            onClick={() => setMobileMenuOpen(false)}
+            className="mb-3 flex items-center justify-center rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
+          >
+            Back to Management View
+          </Link>
+        )}
+
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
