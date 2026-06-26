@@ -20,7 +20,8 @@ export default function EmployeeApproval() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
-  const { profile, isViewer } = useAuth();
+  const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
+  const canManageStaff = isPrincipal && !isViewer;
 
   useEffect(() => {
     fetchEmployees();
@@ -46,7 +47,7 @@ export default function EmployeeApproval() {
   };
 
   const handleApprove = async (employeeId: string, employeeName: string) => {
-    if (!profile?.id) return;
+    if (!profile?.id || !canManageStaff) return;
 
     setProcessingId(employeeId);
     try {
@@ -98,7 +99,7 @@ export default function EmployeeApproval() {
   };
 
   const handleReject = async (employeeId: string, employeeName: string) => {
-    if (!profile?.id) return;
+    if (!profile?.id || !canManageStaff) return;
 
     setProcessingId(employeeId);
     try {
@@ -143,7 +144,7 @@ export default function EmployeeApproval() {
   };
 
   const handleMoveToPast = async (employee: EmployeeRecord) => {
-    if (!profile?.id) return;
+    if (!profile?.id || !canManageStaff) return;
     if (!window.confirm(`Move ${employee.full_name} to Past Employees? Their old leave records will stay saved.`)) return;
 
     setProcessingId(employee.id);
@@ -171,7 +172,7 @@ export default function EmployeeApproval() {
   };
 
   const handleRestoreEmployee = async (employee: EmployeeRecord) => {
-    if (!profile?.id) return;
+    if (!profile?.id || !canManageStaff) return;
     if (!window.confirm(`Restore ${employee.full_name} as current employee?`)) return;
 
     setProcessingId(employee.id);
@@ -222,7 +223,7 @@ export default function EmployeeApproval() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Employee Management</h1>
-          <p className="text-muted-foreground mt-2">{isViewer ? 'View staff records and approval status in read-only mode' : 'Review staff registrations, manage current staff, and keep past employee records safely'}</p>
+          <p className="text-muted-foreground mt-2">{canManageStaff ? 'Review staff registrations, manage current staff, and keep past employee records safely' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -270,7 +271,7 @@ export default function EmployeeApproval() {
                   <Users className="h-5 w-5" />
                   Employees
                 </CardTitle>
-                <CardDescription>{isViewer ? 'Read-only employee records' : 'Use Past Employees for staff who left college without deleting history'}</CardDescription>
+                <CardDescription>{canManageStaff ? 'Use Past Employees for staff who left college without deleting history' : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
@@ -302,7 +303,7 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
-                      {!isViewer && <th className="text-left p-3 whitespace-nowrap">Action</th>}
+                      {canManageStaff && <th className="text-left p-3 whitespace-nowrap">Principal Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -323,7 +324,7 @@ export default function EmployeeApproval() {
                             {employee.exited_at ? new Date(employee.exited_at).toLocaleDateString() : '-'}
                           </td>
                         )}
-{!isViewer && (
+{canManageStaff && (
                                                   <td className="p-3 whitespace-nowrap">
                           {activeTab === 'past' ? (
                             <Button
