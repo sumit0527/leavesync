@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string) => {
+  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin') => {
     try {
       const cleanedUsername = cleanUsername(username);
       const cleanedEmail = email.trim().toLowerCase();
@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: cleanedEmail,
             address: address.trim(),
             department_id: departmentId,
-            role: adminSecret ? 'admin' : 'staff'
+            role: adminSecret ? (requestedRole ?? 'principal') : 'staff'
           }
         }
       });
