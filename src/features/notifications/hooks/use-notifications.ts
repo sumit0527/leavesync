@@ -4,8 +4,12 @@ import type { Notification } from '@/types';
 
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
 
+function notificationText(notification: Notification) {
+  return `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+}
+
 function isDirectorOnlyNotification(notification: Notification) {
-  const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+  const text = notificationText(notification);
   return (
     text.includes('director') ||
     text.includes('main admin') ||
@@ -16,22 +20,42 @@ function isDirectorOnlyNotification(notification: Notification) {
 }
 
 function isPrincipalOnlyNotification(notification: Notification) {
-  const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+  const text = notificationText(notification);
   return text.includes('principal') && !text.includes('staff');
+}
+
+function isStaffRelatedNotification(notification: Notification) {
+  const staffTypes = new Set([
+    'staff_registration_pending',
+    'staff_registration_approved',
+    'staff_registration_rejected',
+    'staff_registration_record',
+    'new_staff_registration',
+    'staff_registration',
+    'staff_leave_pending',
+    'staff_leave_approved',
+    'staff_leave_rejected',
+    'staff_leave_application',
+  ]);
+
+  const text = notificationText(notification);
+  return staffTypes.has(String(notification.type ?? '')) || text.includes('staff');
 }
 
 function filterNotificationsByScope(rows: Notification[], scope: NotificationScope) {
   if (scope === 'principal') {
     return rows.filter((notification) => {
-      const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
-      const isStaffRelated = text.includes('staff') || notification.type === 'staff_registration_pending' || notification.type === 'staff_leave_pending';
-      return isStaffRelated && !isDirectorOnlyNotification(notification) && !isPrincipalOnlyNotification(notification);
+      return (
+        isStaffRelatedNotification(notification) &&
+        !isDirectorOnlyNotification(notification) &&
+        !isPrincipalOnlyNotification(notification)
+      );
     });
   }
 
   if (scope === 'director') {
     return rows.filter((notification) => {
-      const text = `${notification.type ?? ''} ${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+      const text = notificationText(notification);
       return text.includes('principal') || notification.type === 'principal_registration_pending' || notification.type === 'principal_leave_pending';
     });
   }
@@ -57,8 +81,6 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
 
       let rows: Notification[] = [];
 
-      // For management roles, use a security-definer RPC so Principal/Director
-      // notification visibility does not break because of old user_id/type values or RLS.
       if (scope === 'principal' || scope === 'director' || scope === 'all') {
         const { data, error } = await supabase.rpc('get_management_notifications', {
           p_scope: scope,
@@ -84,7 +106,6 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
 
-      // Final fallback: at least try own notifications so the page never looks broken.
       if (userId) {
         const { data } = await supabase
           .from('notifications')
@@ -131,8 +152,6 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
     if (!userId) return;
 
     try {
-      // Mark only notifications assigned to the logged-in user.
-      // This avoids Principal accidentally marking shared/backfilled records for others.
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
