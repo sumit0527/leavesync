@@ -13,6 +13,7 @@ type EmployeeRecord = Profile & {
   employment_status?: 'active' | 'past';
   exited_at?: string | null;
   exited_by?: string | null;
+  approver?: Pick<Profile, 'id' | 'username' | 'full_name'> | null;
 };
 
 export default function EmployeeApproval() {
@@ -49,7 +50,27 @@ export default function EmployeeApproval() {
       const { data, error } = await query;
 
       if (error) throw error;
-      if (data) setEmployees(data as unknown as EmployeeRecord[]);
+      if (data) {
+        const records = data as unknown as EmployeeRecord[];
+        const handlerIds = Array.from(new Set(records.map((record) => record.approved_by).filter(Boolean))) as string[];
+
+        if (handlerIds.length > 0) {
+          const { data: handlers, error: handlersError } = await supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .in('id', handlerIds);
+
+          if (handlersError) console.error('Failed to fetch action handlers:', handlersError);
+
+          const handlerMap = new Map((handlers ?? []).map((handler) => [handler.id, handler]));
+          setEmployees(records.map((record) => ({
+            ...record,
+            approver: record.approved_by ? handlerMap.get(record.approved_by) ?? null : null,
+          })));
+        } else {
+          setEmployees(records);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch employees:', err);
       toast.error('Failed to load employees');
@@ -225,6 +246,14 @@ export default function EmployeeApproval() {
     }
   };
 
+  const formatAccountAction = (employee: EmployeeRecord) => {
+    if (employee.approval_status === 'pending') return 'Waiting for action';
+    const actionText = employee.approval_status === 'approved' ? 'Approved' : 'Rejected';
+    const actorName = employee.approver?.full_name || employee.approver?.username || 'Management';
+    const actionDate = employee.approved_at ? new Date(employee.approved_at).toLocaleDateString() : '';
+    return `${actionText} by ${actorName}${actionDate ? ` on ${actionDate}` : ''}`;
+  };
+
   const currentEmployees = employees.filter(e => (e.employment_status ?? 'active') !== 'past');
   const pastEmployees = employees.filter(e => e.employment_status === 'past');
   const visibleEmployees = activeTab === 'current' ? currentEmployees : pastEmployees;
@@ -314,6 +343,7 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
                       <th className="text-left p-3 whitespace-nowrap">Department</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
+                      <th className="text-left p-3 whitespace-nowrap">Handled By</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
                       {canManageStaff && <th className="text-left p-3 whitespace-nowrap">{isDirectorManagingPrincipals ? 'Director Action' : 'Principal Action'}</th>}
                     </tr>
@@ -331,6 +361,7 @@ export default function EmployeeApproval() {
                         <td className="p-3 whitespace-nowrap">{employee.phone || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.department?.name || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{getStatusBadge(employee.approval_status, employee.employment_status)}</td>
+                        <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">{formatAccountAction(employee)}</td>
                         {activeTab === 'past' && (
                           <td className="p-3 whitespace-nowrap">
                             {employee.exited_at ? new Date(employee.exited_at).toLocaleDateString() : '-'}
