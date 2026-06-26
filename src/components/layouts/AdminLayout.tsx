@@ -43,7 +43,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
-  const { unreadCount } = useNotifications(profile?.id);
+  const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : 'own';
+  const { unreadCount } = useNotifications(profile?.id, notificationScope);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const portalTitle = `${portalRoleLabel} Portal`;
