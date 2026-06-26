@@ -13,7 +13,7 @@ import { supabase } from '@/db/supabase';
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
 export default function AdminDashboard() {
-  const { profile, isViewer, portalRoleLabel } = useAuth();
+  const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading } = useLeaveApplications();
   const { stats } = useLeaveStats();
   const [employeeCount, setEmployeeCount] = useState(0);
