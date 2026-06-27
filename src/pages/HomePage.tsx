@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -14,6 +14,7 @@ import {
   Zap,
   Mail,
   BarChart3,
+  ArrowUp,
 } from 'lucide-react';
 
 /* ── Image assets ── */
@@ -97,8 +98,18 @@ function SectionHeader({ label, title }: { label: string; title: string }) {
 export default function HomePage() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   /* Particles effect */
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > 420);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -237,6 +248,18 @@ export default function HomePage() {
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
+
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-5 right-5 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-primary/40 bg-card/90 text-primary shadow-lg backdrop-blur transition hover:bg-primary hover:text-primary-foreground sm:bottom-6 sm:right-6"
+          aria-label="Back to top"
+          title="Back to top"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
 
       {/* Content */}
       <div className="relative z-10 flex flex-col min-h-screen">
