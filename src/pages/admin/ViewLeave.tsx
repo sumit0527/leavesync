@@ -53,7 +53,23 @@ export default function ViewLeave() {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const filtered = applications.filter((app) => {
+  const visibleApplications = applications.filter((app) => {
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+
+    if (isMainAdmin) {
+      // Director's All/View Leave section is for Principal leave applications only.
+      return staffRole === 'principal' || staffRole === 'admin';
+    }
+
+    if (isPrincipal && !isViewer) {
+      // Principal manages only staff leave applications.
+      return staffRole === 'staff';
+    }
+
+    return true;
+  });
+
+  const filtered = visibleApplications.filter((app) => {
     if (filterStatus !== 'all' && app.status !== filterStatus) return false;
     if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (filterDept !== 'all' && app.staff?.department_id !== filterDept) return false;
@@ -169,7 +185,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View all staff leave applications in read-only mode' : isDirectorReadOnly ? 'Monitor staff leave applications handled by Principal' : 'Review, approve or reject staff leave applications'}
+            {isViewer ? 'View leave applications in read-only mode' : isDirectorReadOnly ? 'Review Principal leave applications and monitor handled requests' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -239,12 +255,12 @@ export default function ViewLeave() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">
-              Leave Applications
+              {isDirectorReadOnly ? 'Principal Leave Applications' : 'Leave Applications'}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
             </CardTitle>
-            <CardDescription>{canManageStaffLeaves ? 'Click Approve or Reject to act on a pending staff application' : `${portalRoleLabel} read-only monitoring view. Principal handles staff approvals.`}</CardDescription>
+            <CardDescription>{canManageStaffLeaves ? 'Click Approve or Reject to act on a pending staff application' : isDirectorReadOnly ? 'Director view shows Principal leave applications.' : `${portalRoleLabel} read-only monitoring view.`}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
