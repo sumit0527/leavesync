@@ -121,14 +121,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           <p className="text-xs text-muted-foreground">@{profile?.username}</p>
           <p className="mt-2 text-xs text-primary">{accountRoleText}</p>
         </div>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={handleSignOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
-        </Button>
       </div>
     </div>
   );
