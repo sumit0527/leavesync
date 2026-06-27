@@ -8,18 +8,28 @@ import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
 export default function Notifications() {
-  const { profile } = useAuth();
+  const { profile, isPrincipal } = useAuth();
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(profile?.id);
+
+  const visibleNotifications = isPrincipal
+    ? notifications.filter((notification) => {
+        const text = `${notification.title} ${notification.message} ${notification.type}`.toLowerCase();
+        // Principal self-leave portal should show only their own account/leave updates,
+        // not management/request notifications such as Director or Principal registration alerts.
+        if (text.includes('director registration') || text.includes('principal registration') || text.includes('review required') || text.includes('request inbox')) return false;
+        return text.includes('leave') || text.includes('account approved') || text.includes('account rejected') || text.includes('password');
+      })
+    : notifications;
 
   return (
     <StaffLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">Notifications</h1>
-            <p className="mt-2 text-muted-foreground">Stay updated on your leave applications</p>
+            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isPrincipal ? 'Principal Leave Notifications' : 'Notifications'}</h1>
+            <p className="mt-2 text-muted-foreground">{isPrincipal ? 'Only your own Principal leave/account updates appear here' : 'Stay updated on your leave applications'}</p>
           </div>
-          {notifications.some(n => !n.is_read) && (
+          {visibleNotifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -33,7 +43,7 @@ export default function Notifications() {
               <p className="text-muted-foreground">Loading...</p>
             </CardContent>
           </Card>
-        ) : notifications.length === 0 ? (
+        ) : visibleNotifications.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Bell className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -42,7 +52,7 @@ export default function Notifications() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {notifications.map((notification) => (
+            {visibleNotifications.map((notification) => (
               <Card
                 key={notification.id}
                 className={`cursor-pointer transition-all ${!notification.is_read ? 'border-primary' : ''}`}
