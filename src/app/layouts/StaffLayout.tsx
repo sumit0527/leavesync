@@ -112,14 +112,6 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
           <p className="text-sm font-medium text-sidebar-foreground">{profile?.full_name}</p>
           <p className="text-xs text-muted-foreground">@{profile?.username}</p>
         </div>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={handleSignOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
-        </Button>
       </div>
     </div>
   );
@@ -160,7 +152,19 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               <p className="text-xs text-muted-foreground">G.D. Sawant College</p>
             </div>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </Button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-x-hidden p-4 md:p-8">
