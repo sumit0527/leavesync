@@ -25,7 +25,8 @@ export default function EmployeeApproval() {
   const isDirectorManagingPrincipals = isMainAdmin;
   const managedRoleLabel = isDirectorManagingPrincipals ? 'Principal' : 'Staff';
   const managedRoleLabelPlural = isDirectorManagingPrincipals ? 'Principals' : 'Employees';
-  const canManageStaff = (isPrincipal || isMainAdmin) && !isViewer;
+  const canApproveAccounts = (isPrincipal || isMainAdmin) && !isViewer;
+  const canMovePastEmployees = isMainAdmin && !isViewer;
 
   useEffect(() => {
     fetchEmployees();
@@ -80,7 +81,7 @@ export default function EmployeeApproval() {
   };
 
   const handleApprove = async (employeeId: string, employeeName: string) => {
-    if (!profile?.id || !canManageStaff) return;
+    if (!profile?.id || !canApproveAccounts) return;
 
     setProcessingId(employeeId);
     try {
@@ -132,7 +133,7 @@ export default function EmployeeApproval() {
   };
 
   const handleReject = async (employeeId: string, employeeName: string) => {
-    if (!profile?.id || !canManageStaff) return;
+    if (!profile?.id || !canApproveAccounts) return;
 
     setProcessingId(employeeId);
     try {
@@ -177,7 +178,7 @@ export default function EmployeeApproval() {
   };
 
   const handleMoveToPast = async (employee: EmployeeRecord) => {
-    if (!profile?.id || !canManageStaff) return;
+    if (!profile?.id || !canMovePastEmployees) return;
     if (!window.confirm(`Move ${employee.full_name} to Past ${managedRoleLabelPlural}? Their old leave records will stay saved.`)) return;
 
     setProcessingId(employee.id);
@@ -205,7 +206,7 @@ export default function EmployeeApproval() {
   };
 
   const handleRestoreEmployee = async (employee: EmployeeRecord) => {
-    if (!profile?.id || !canManageStaff) return;
+    if (!profile?.id || !canMovePastEmployees) return;
     if (!window.confirm(`Restore ${employee.full_name} as current ${managedRoleLabel.toLowerCase()}?`)) return;
 
     setProcessingId(employee.id);
@@ -264,7 +265,7 @@ export default function EmployeeApproval() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isDirectorManagingPrincipals ? 'Principal Management' : 'Employee Management'}</h1>
-          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : canManageStaff ? 'Review staff registrations, manage current staff, and keep past employee records safely' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
+          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -312,7 +313,7 @@ export default function EmployeeApproval() {
                   <Users className="h-5 w-5" />
                   {isDirectorManagingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
-                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canManageStaff ? 'Use Past Employees for staff who left college without deleting history' : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
+                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
@@ -339,12 +340,13 @@ export default function EmployeeApproval() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 whitespace-nowrap">Name</th>
+                      {!isDirectorManagingPrincipals && <th className="text-left p-3 whitespace-nowrap">Department</th>}
                       <th className="text-left p-3 whitespace-nowrap">Email</th>
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
                       <th className="text-left p-3 whitespace-nowrap">Handled By</th>
                       {activeTab === 'past' && <th className="text-left p-3 whitespace-nowrap">Left On</th>}
-                      {canManageStaff && <th className="text-left p-3 whitespace-nowrap">{isDirectorManagingPrincipals ? 'Director Action' : 'Principal Action'}</th>}
+                      {canApproveAccounts && <th className="text-left p-3 whitespace-nowrap">{isDirectorManagingPrincipals ? 'Director Action' : 'Principal Action'}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -356,6 +358,9 @@ export default function EmployeeApproval() {
                             <p className="text-xs text-muted-foreground">@{employee.username}</p>
                           </div>
                         </td>
+                        {!isDirectorManagingPrincipals && (
+                          <td className="p-3 whitespace-nowrap">{employee.department?.name || 'No department selected'}</td>
+                        )}
                         <td className="p-3 whitespace-nowrap">{employee.email || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.phone || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{getStatusBadge(employee.approval_status, employee.employment_status)}</td>
@@ -365,9 +370,10 @@ export default function EmployeeApproval() {
                             {employee.exited_at ? new Date(employee.exited_at).toLocaleDateString() : '-'}
                           </td>
                         )}
-{canManageStaff && (
-                                                  <td className="p-3 whitespace-nowrap">
+{canApproveAccounts && (
+                        <td className="p-3 whitespace-nowrap">
                           {activeTab === 'past' ? (
+                            canMovePastEmployees ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -377,6 +383,7 @@ export default function EmployeeApproval() {
                               {processingId === employee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
                               Restore
                             </Button>
+                            ) : <span className="text-xs text-muted-foreground">Past record</span>
                           ) : employee.approval_status === 'pending' ? (
                             <div className="flex gap-2">
                               <Button
@@ -403,7 +410,7 @@ export default function EmployeeApproval() {
                                 Reject
                               </Button>
                             </div>
-                          ) : (
+                          ) : canMovePastEmployees ? (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -413,6 +420,8 @@ export default function EmployeeApproval() {
                               {processingId === employee.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4 mr-1" />}
                               Move to Past
                             </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No action needed</span>
                           )}
                         </td>
                         )}
