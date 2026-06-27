@@ -5,6 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useHolidays } from '@/hooks/use-holidays';
 import { supabase } from '@/db/supabase';
@@ -376,57 +382,52 @@ export default function AdminCalendar() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Calendar</h1>
-          <p className="mt-2 text-muted-foreground">{isCalendarReadOnly ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-playfair-display font-bold gradient-text">Leave Calendar</h1>
+            <p className="mt-2 text-muted-foreground">{isCalendarReadOnly ? 'View approved leaves and college holidays' : 'View approved leaves and add college holidays on specific dates'}</p>
+          </div>
+
+          {canDownloadDirectorReports && (
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-9 gap-2" disabled={!!reportLoading}>
+                    {reportLoading?.startsWith('staff') ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Staff Report
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => handleDirectorReportDownload('staff', 'pdf')}>
+                    <FileText className="mr-2 h-4 w-4" /> Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDirectorReportDownload('staff', 'excel')}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-9 gap-2" disabled={!!reportLoading}>
+                    {reportLoading?.startsWith('principal') ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Principal Report
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => handleDirectorReportDownload('principal', 'pdf')}>
+                    <FileText className="mr-2 h-4 w-4" /> Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDirectorReportDownload('principal', 'excel')}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
 
-        {canDownloadDirectorReports && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <Download className="h-4 w-4 text-primary" />
-                Director Reports
-              </CardTitle>
-              <CardDescription>
-                Download staff-side activity handled by Principal and Principal leave/activity details for Director review.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-sm font-semibold">Staff Details Report</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Complete staff details with leave status, full/half day details, handler and balances.</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('staff', 'pdf')} disabled={!!reportLoading}>
-                      {reportLoading === 'staff-pdf' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-2 h-3.5 w-3.5" />}
-                      PDF
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('staff', 'excel')} disabled={!!reportLoading}>
-                      {reportLoading === 'staff-excel' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />}
-                      Excel
-                    </Button>
-                  </div>
-                </div>
 
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-sm font-semibold">Principal Details Report</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Principal details with leave status, full/half day details, Director handler and balances.</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('principal', 'pdf')} disabled={!!reportLoading}>
-                      {reportLoading === 'principal-pdf' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-2 h-3.5 w-3.5" />}
-                      PDF
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDirectorReportDownload('principal', 'excel')} disabled={!!reportLoading}>
-                      {reportLoading === 'principal-excel' ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />}
-                      Excel
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="md:col-span-2">
