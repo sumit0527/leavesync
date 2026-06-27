@@ -247,7 +247,7 @@ export default function Profile() {
                   { icon: AtSign, label: 'Username', value: `@${profile?.username}` },
                   { icon: Mail, label: 'Email', value: profile?.email || 'Not provided' },
                   { icon: Phone, label: 'Phone', value: profile?.phone || 'Not provided' },
-                  { icon: Award, label: 'Role', value: profile?.role ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1) : '' },
+                  { icon: Award, label: 'Role', value: isPrincipal ? 'Principal' : 'Staff Member' },
                   { icon: MapPin, label: 'Address', value: profile?.address || 'Not provided' },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 rounded-md border border-border p-3">
