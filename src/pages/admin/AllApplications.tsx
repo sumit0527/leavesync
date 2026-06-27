@@ -1,4 +1,5 @@
 import AdminLayout from '@/components/layouts/AdminLayout';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ const formatLeaveDuration = (app: any) => {
 
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
+  const { isMainAdmin, isPrincipal, isViewer } = useAuth();
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
   const currentYear = new Date().getFullYear();
@@ -42,7 +44,23 @@ export default function AllApplications() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredApplications = applications.filter(app => {
+  const visibleApplications = applications.filter(app => {
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+
+    if (isMainAdmin) {
+      // Director's All Applications section shows Principal leave applications only.
+      return staffRole === 'principal' || staffRole === 'admin';
+    }
+
+    if (isPrincipal && !isViewer) {
+      // Principal's All Applications section shows staff leave applications only.
+      return staffRole === 'staff';
+    }
+
+    return true;
+  });
+
+  const filteredApplications = visibleApplications.filter(app => {
     if (filter !== 'all' && app.status !== filter) return false;
     if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (filterDepartment !== 'all' && app.staff?.department_id !== filterDepartment) return false;
@@ -123,7 +141,7 @@ export default function AllApplications() {
     const drawHeader = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
-      doc.text('LeaveSync - All Leave Applications', margin, y);
+      doc.text(isMainAdmin ? 'LeaveSync - Principal Leave Applications' : 'LeaveSync - All Leave Applications', margin, y);
       y += 18;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
@@ -214,8 +232,8 @@ export default function AllApplications() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">All Applications</h1>
-            <p className="mt-2 text-muted-foreground">View all leave applications</p>
+            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isMainAdmin ? 'Principal Applications' : 'All Applications'}</h1>
+            <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'View Principal leave applications' : isPrincipal && !isViewer ? 'View staff leave applications' : 'View leave applications'}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Select value={filterYear} onValueChange={setFilterYear}>
