@@ -108,29 +108,23 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
-        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
+          </div>
 
-        {isPrincipal && !isViewer && (
-          <Card className="rounded-xl border-primary/30 bg-primary/5 shadow-sm">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-primary">Principal Mode</p>
-                <p className="text-xs text-muted-foreground">
-                  Use Management View for staff approvals. Switch to My Leave View to apply for your own leave like staff.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                <Button size="sm" variant="default" className="h-9">Management View</Button>
-                <Button size="sm" variant="outline" className="h-9" asChild>
-                  <Link to="/staff/dashboard">My Leave View</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {isPrincipal && !isViewer && (
+            <div className="grid w-full grid-cols-2 gap-1.5 rounded-xl border border-primary/25 bg-primary/5 p-1.5 shadow-sm sm:w-auto sm:min-w-[260px]">
+              <Button size="sm" variant="default" className="h-8 px-2 text-[11px] sm:h-9 sm:text-xs">
+                Management View
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] sm:h-9 sm:text-xs" asChild>
+                <Link to="/staff/dashboard">My Leave View</Link>
+              </Button>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3 lg:grid-cols-6">
           {dashboardCards.map((item) => {
