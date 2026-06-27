@@ -18,7 +18,7 @@ export default function AdminDashboard() {
   const { stats } = useLeaveStats();
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
-  const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; department?: { name: string } }[]>([]);
+  const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; username?: string; email?: string | null; phone?: string | null; created_at: string; department?: { name: string } }[]>([]);
 
   const fetchCounts = useCallback(async () => {
     const { count: empCount } = await supabase
@@ -37,17 +37,27 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchNewStaff = useCallback(async () => {
-    const { data } = await supabase
+    // Principal dashboard: show pending Staff registrations.
+    // Director dashboard: show pending Principal registrations. Legacy DB role 'admin' is also treated as Principal.
+    const roles = isMainAdmin ? ['principal', 'admin'] : ['staff'];
+
+    const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, created_at, department:departments(name)')
-      .eq('role', 'staff')
+      .select('id, full_name, username, email, phone, created_at, department:departments(name)')
+      .in('role', roles)
       .eq('approval_status', 'pending')
       .or('employment_status.is.null,employment_status.neq.past')
       .order('created_at', { ascending: false })
       .limit(4);
 
-    if (data) setNewStaffList(data as any);
-  }, []);
+    if (error) {
+      console.error('Failed to load new registrations:', error);
+      setNewStaffList([]);
+      return;
+    }
+
+    setNewStaffList((data ?? []) as any);
+  }, [isMainAdmin]);
 
   useEffect(() => {
     fetchCounts();
@@ -100,29 +110,24 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
-        </div>
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
+          </div>
 
-        {isPrincipal && !isViewer && (
-          <Card className="rounded-xl border-primary/30 bg-primary/5 shadow-sm">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-primary">Principal Mode</p>
-                <p className="text-xs text-muted-foreground">
-                  Use Management View for staff approvals. Switch to My Leave View to apply for your own leave like staff.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                <Button size="sm" variant="default" className="h-9">Management View</Button>
-                <Button size="sm" variant="outline" className="h-9" asChild>
+          {isPrincipal && !isViewer && (
+            <div className="w-full rounded-lg border border-primary/25 bg-primary/5 p-2 sm:w-auto sm:min-w-[280px]">
+              <p className="mb-1 text-xs font-semibold text-primary">Principal Mode</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button size="sm" variant="default" className="h-8 px-2 text-xs">Management View</Button>
+                <Button size="sm" variant="outline" className="h-8 px-2 text-xs" asChild>
                   <Link to="/staff/dashboard">My Leave View</Link>
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3 lg:grid-cols-6">
           {dashboardCards.map((item) => {
@@ -203,9 +208,9 @@ export default function AdminDashboard() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2 text-lg">
                   <UserPlus className="h-4 w-4 text-primary" />
-                  New Staff Registrations
+                  {isMainAdmin ? 'New Principal Registrations' : 'New Staff Registrations'}
                 </CardTitle>
-                <CardDescription className="text-xs">Pending staff approvals</CardDescription>
+                <CardDescription className="text-xs">{isMainAdmin ? 'Pending Principal approvals for Director' : 'Pending staff approvals for Principal'}</CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/admin/employees">Review All</Link>
@@ -213,13 +218,13 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-4 pt-1">
               {newStaffList.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No new staff registrations</p>
+                <p className="text-sm text-muted-foreground">{isMainAdmin ? 'No new Principal registrations' : 'No new staff registrations'}</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {newStaffList.map((staff) => (
                     <div key={staff.id} className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
                       <p className="truncate text-sm font-medium">{staff.full_name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{staff.department?.name || 'No department selected'}</p>
+                      <p className="truncate text-xs text-muted-foreground">{isMainAdmin ? `@${staff.username || 'principal'}` : (staff.department?.name || 'No department selected')}</p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         Registered {format(new Date(staff.created_at), 'MMM dd')}
                       </p>
