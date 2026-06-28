@@ -38,7 +38,7 @@ export default function AdminNotifications() {
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
             <p className="mt-2 text-muted-foreground">{description}</p>
           </div>
-          {!isViewer && !isRequestInbox && notifications.some(n => !n.is_read && n.user_id === profile?.id) && (
+          {!isViewer && notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -96,7 +96,7 @@ export default function AdminNotifications() {
                       Review this request from the correct section. Staff requests are handled by Principal. Principal requests are handled by Director.
                     </p>
                   )}
-                  {!isViewer && !isRequestInbox && notification.user_id === profile?.id && !notification.is_read && (
+                  {!isViewer && !notification.is_read && (
                     <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
                       Mark as Read
                     </Button>
