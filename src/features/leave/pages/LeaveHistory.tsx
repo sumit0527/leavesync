@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
 import { CheckCircle, XCircle, Clock, Download, FileText } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -17,6 +16,7 @@ import {
 import { useState } from 'react';
 
 import { generateLeaveHistoryReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
 
 const formatLeaveDuration = (app: any) => {
   if (app.leave_duration === 'half_day') {
@@ -66,53 +66,24 @@ export default function LeaveHistory() {
 
   const exportToPDF = () => {
     const filterLabel = filter === 'all' ? 'All Status' : filter.charAt(0).toUpperCase() + filter.slice(1);
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const margin = 36;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 42;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('LeaveSync - Leave History Report', margin, y);
-    y += 18;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`${isPrincipal ? 'Principal' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal' : 'Staff')} | Filter: ${filterLabel}`, margin, y);
-    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 160, y);
-    y += 22;
-
     const reviewerLabel = isPrincipal ? 'Director Response' : 'Principal Response';
-    const headers = ['#', 'Leave Type', 'Start', 'End', 'Duration', 'Days', 'Status', 'Reason', reviewerLabel];
-    const widths = [28, 92, 64, 64, 96, 38, 64, 190, 180];
-    const drawHeader = () => {
-      let x = margin;
-      doc.setFillColor(44, 31, 8);
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      headers.forEach((h, i) => { doc.rect(x, y, widths[i], 20, 'F'); doc.text(h, x + 4, y + 13); x += widths[i]; });
-      y += 20;
-      doc.setTextColor(0, 0, 0);
-    };
-    drawHeader();
-
-    if (filteredApplications.length === 0) {
-      doc.setFontSize(10);
-      doc.text('No applications found for selected filter.', margin, y + 18);
-    } else {
-      filteredApplications.forEach((app, idx) => {
-        if (y > 530) { doc.addPage(); y = 42; drawHeader(); }
-        const values = [idx + 1, app.leave_type?.name || 'N/A', format(new Date(app.start_date), 'dd/MM/yyyy'), format(new Date(app.end_date), 'dd/MM/yyyy'), formatLeaveDuration(app), app.leave_days, app.status, app.reason || '', app.admin_response || 'N/A'];
-        let x = margin;
-        doc.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255);
-        doc.rect(margin, y, widths.reduce((a,b)=>a+b,0), 28, 'F');
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        values.forEach((v, i) => { doc.text(doc.splitTextToSize(String(v), widths[i] - 8).slice(0, 2), x + 4, y + 10); x += widths[i]; });
-        y += 28;
-      });
-    }
-    doc.save(`leave_history_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    downloadTablePdf({
+      title: 'Leave History Report',
+      subtitle: `${isPrincipal ? 'Principal' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal' : 'Staff')} | Filter: ${filterLabel}`,
+      headers: ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', reviewerLabel],
+      rows: filteredApplications.map((app, idx) => [
+        idx + 1,
+        app.leave_type?.name || 'N/A',
+        format(new Date(app.start_date), 'dd/MM/yyyy'),
+        format(new Date(app.end_date), 'dd/MM/yyyy'),
+        formatLeaveDuration(app),
+        app.leave_days,
+        app.status.charAt(0).toUpperCase() + app.status.slice(1),
+        app.reason || '-',
+        app.admin_response || 'N/A',
+      ]),
+      filename: `leave_history_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+    });
   };
 
   const exportToExcel = downloadReport;
