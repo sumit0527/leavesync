@@ -35,7 +35,19 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut, isPrincipal } = useAuth();
-  const { unreadCount } = useNotifications(profile?.id);
+  const { notifications } = useNotifications(profile?.id);
+  const isPrincipalManagementNotification = (notification: any) => {
+    const text = `${notification.title ?? ''} ${notification.message ?? ''} ${notification.type ?? ''}`.toLowerCase();
+    return (
+      text.includes('staff registration pending') ||
+      text.includes('staff leave request pending') ||
+      text.includes('staff_registration_pending') ||
+      text.includes('staff_leave_pending') ||
+      text.includes('review required') ||
+      text.includes('request inbox')
+    );
+  };
+  const unreadCount = notifications.filter((notification) => !notification.is_read && !(isPrincipal && isPrincipalManagementNotification(notification))).length;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
