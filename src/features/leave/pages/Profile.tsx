@@ -6,15 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Download, User, Mail, Phone, MapPin, AtSign, Award, Loader2, Edit3, Save, X, KeyRound } from 'lucide-react';
+import { Download, User, Mail, Phone, MapPin, AtSign, Award, Loader2, Edit3, Save, X, KeyRound, FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useLeaveStats } from '@/hooks/use-leave-applications';
 import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
 import { Badge } from '@/components/ui/badge';
 import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
+
 
 
 export default function Profile() {
@@ -115,21 +122,49 @@ export default function Profile() {
     downloadWorkbook(wb, `profile_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
+  const exportToPDF = () => {
+    const infoRows = [
+      ['Profile', 'Full Name', profile?.full_name || '-', '', ''],
+      ['Profile', 'Username', profile?.username || '-', '', ''],
+      ['Profile', 'Email', profile?.email || '-', '', ''],
+      ['Profile', 'Phone', profile?.phone || '-', '', ''],
+      ['Profile', 'Address', profile?.address || '-', '', ''],
+      ['Profile', 'Role', isPrincipal ? 'Principal' : 'Staff Member', '', ''],
+      ['Application Summary', 'Total', stats.total, '', ''],
+      ['Application Summary', 'Approved', stats.approved, '', ''],
+      ['Application Summary', 'Pending', stats.pending, '', ''],
+      ['Application Summary', 'Rejected', stats.rejected, '', ''],
+      ['Leave Allocation', 'Leave Type', 'Total', 'Used', 'Remaining'],
+      ...allocations.map((a) => ['Leave Allocation', a.leave_type?.name || 'N/A', a.total_allocated, a.used, a.remaining]),
+    ];
+    downloadTablePdf({
+      title: `${isPrincipal ? 'Principal' : 'Staff'} Profile Report`,
+      subtitle: profile?.full_name || '',
+      headers: ['Section', 'Field / Leave Type', 'Value / Total', 'Used', 'Remaining'],
+      rows: infoRows,
+      filename: `profile_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+      orientation: 'portrait',
+    });
+  };
+
+  const exportToExcel = downloadFullReport;
+
   return (
     <StaffLayout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">My Profile</h1>
-            <p className="mt-2 text-muted-foreground">View and update your profile information</p>
+      <div className="mx-auto max-w-3xl space-y-6 pb-8">
+        {/* Page header — stacks on mobile */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-playfair-display font-bold gradient-text text-balance">My Profile</h1>
+            <p className="mt-1 text-sm text-muted-foreground">View and update your profile information</p>
           </div>
           {!editing ? (
-            <Button onClick={startEdit} variant="secondary">
+            <Button onClick={startEdit} variant="secondary" className="shrink-0 self-start md:self-auto">
               <Edit3 className="mr-2 h-4 w-4" />
               Edit Profile
             </Button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0 self-start md:self-auto">
               <Button onClick={cancelEdit} variant="secondary" disabled={saving}>
                 <X className="mr-2 h-4 w-4" />
                 Cancel
@@ -202,8 +237,8 @@ export default function Profile() {
 
         {/* Leave Allocation — red cards exactly matching the reference design */}
         <Card>
-          <CardHeader>
-            <CardTitle className="font-playfair-display text-primary">Leave Allocation</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="font-playfair-display text-primary text-xl md:text-2xl">Leave Allocation</CardTitle>
             <CardDescription>
               Your leave balance for {new Date().getFullYear()} — counts update automatically when applications are approved
             </CardDescription>
@@ -215,10 +250,10 @@ export default function Profile() {
               </div>
             ) : allocations.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No leave allocations found. Please contact the Director/administration office.
+                No leave allocations found for {new Date().getFullYear()}. Please contact the Director/administration office.
               </div>
             ) : (
-              <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-3">
                 {allocations.map((allocation) => {
                   const used = allocation.used ?? 0;
                   const total = allocation.total_allocated;
@@ -226,7 +261,7 @@ export default function Profile() {
                   const isExhausted = remaining === 0 && total > 0;
                   const isOver = used > total;
                   const name = allocation.leave_type?.name ?? 'Leave';
-                  // Abbreviation: first letter of each word
+                  // Abbreviation: first letter of each word, max 4 chars
                   const abbr = name
                     .split(/\s+/)
                     .map((w: string) => w[0]?.toUpperCase() ?? '')
@@ -235,22 +270,20 @@ export default function Profile() {
                   return (
                     <div
                       key={allocation.id}
-                      className="rounded-lg bg-primary p-4 space-y-2 shadow-md"
+                      className="rounded-lg bg-primary p-3 md:p-4 space-y-2 shadow-md h-full flex flex-col"
                     >
-                      {/* Title row */}
+                      {/* Title */}
                       <p className="font-bold text-sm text-primary-foreground leading-snug text-pretty">
                         {name}{abbr ? ` (${abbr})` : ''}
                       </p>
 
                       {/* Stats */}
-                      <div className="space-y-1 text-sm text-primary-foreground/90">
-                        <p>Total: {total}</p>
-                        <p>Used: {used}</p>
-
-                        {/* Remaining line with a contrasting pill for the number */}
+                      <div className="flex-1 space-y-1 text-sm text-primary-foreground/90">
+                        <p>Total: <span className="font-medium">{total}</span></p>
+                        <p>Used: <span className="font-medium">{used}</span></p>
                         <div className="flex items-center gap-2">
                           <span>Remaining:</span>
-                          <span className="inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold bg-white/20 text-primary-foreground min-w-[1.75rem]">
+                          <span className="inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold bg-white/25 text-primary-foreground min-w-[1.5rem]">
                             {remaining}
                           </span>
                         </div>
@@ -258,10 +291,10 @@ export default function Profile() {
 
                       {/* Exhausted / over-limit warning */}
                       {(isExhausted || isOver) && (
-                        <p className="mt-1 rounded bg-white/20 px-2 py-1 text-xs font-semibold text-primary-foreground">
+                        <p className="rounded bg-white/20 px-2 py-1 text-xs font-semibold text-primary-foreground leading-snug">
                           {isOver
-                            ? 'Limit exceeded — no further applications supported'
-                            : 'All leaves used — no further applications supported'}
+                            ? 'Limit exceeded — applications for this type not accepted'
+                            : 'All leaves used — applications for this type not accepted'}
                         </p>
                       )}
                     </div>
@@ -279,16 +312,16 @@ export default function Profile() {
             <CardDescription>Your application summary</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
-                { label: 'Total Applications', value: stats.total, color: 'text-foreground' },
+                { label: 'Total', value: stats.total, color: 'text-foreground' },
                 { label: 'Approved', value: stats.approved, color: 'text-green-600' },
-                { label: 'Rejected', value: stats.rejected, color: 'text-red-600' },
-                { label: 'Pending', value: stats.pending, color: 'text-yellow-600' },
+                { label: 'Rejected', value: stats.rejected, color: 'text-destructive' },
+                { label: 'Pending', value: stats.pending, color: 'text-amber-500' },
               ].map(({ label, value, color }) => (
-                <div key={label} className="rounded-md border border-border p-4">
-                  <p className="text-sm font-medium text-muted-foreground">{label}</p>
+                <div key={label} className="rounded-md border border-border p-3 text-center">
                   <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs font-medium text-muted-foreground mt-1">{label}</p>
                 </div>
               ))}
             </div>
@@ -302,10 +335,24 @@ export default function Profile() {
             <CardDescription>Download reports or update your security settings</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 md:flex-row">
-            <Button onClick={downloadFullReport} variant="secondary" className="flex-1">
-              <Download className="mr-2 h-4 w-4" />
-              Download Full Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" className="flex-1">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download as Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button onClick={openPwDialog} variant="secondary" className="flex-1">
               <KeyRound className="mr-2 h-4 w-4" />
               Change Password
