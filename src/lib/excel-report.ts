@@ -36,14 +36,21 @@ const COLOR_DEPT_BG   = 'FF2C1F08';   // darker header for dept rows
 const COLOR_DEPT_FG   = 'FFD4AF37';   // gold
 
 // ─── Cell style helpers ───────────────────────────────────────────────────────
+function fullBorder(rgb = 'D8D8D8'): CellStyle['border'] {
+  return {
+    top: { style: 'thin', color: { rgb } },
+    bottom: { style: 'thin', color: { rgb } },
+    left: { style: 'thin', color: { rgb } },
+    right: { style: 'thin', color: { rgb } },
+  };
+}
+
 function headerStyle(): CellStyle {
   return {
     font: { bold: true, color: { rgb: 'D4AF37' }, sz: 11 },
     fill: { fgColor: { rgb: '1E140A' }, patternType: 'solid' },
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
-    border: {
-      bottom: { style: 'medium', color: { rgb: 'D4AF37' } },
-    },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: fullBorder('D4AF37'),
   };
 }
 
@@ -54,10 +61,8 @@ function rowStyle(rowIndex: number): CellStyle {
       fgColor: { rgb: rowIndex % 2 === 0 ? 'FAF8F0' : 'FFFFFF' },
       patternType: 'solid',
     },
-    alignment: { vertical: 'center' },
-    border: {
-      bottom: { style: 'thin', color: { rgb: 'E8E0D0' } },
-    },
+    alignment: { vertical: 'center', wrapText: true },
+    border: fullBorder('E8E0D0'),
   };
 }
 
@@ -77,6 +82,8 @@ function summaryStyle(): CellStyle {
     border: {
       top: { style: 'medium', color: { rgb: 'D4AF37' } },
       bottom: { style: 'medium', color: { rgb: 'D4AF37' } },
+      left: { style: 'thin', color: { rgb: 'D4AF37' } },
+      right: { style: 'thin', color: { rgb: 'D4AF37' } },
     },
   };
 }
@@ -111,6 +118,11 @@ function applyStyleToRange(ws: XLSX.WorkSheet, range: string, style: CellStyle) 
 // ─── Set column widths ────────────────────────────────────────────────────────
 function setColWidths(ws: XLSX.WorkSheet, widths: number[]) {
   ws['!cols'] = widths.map(w => ({ wch: w }));
+}
+
+function setAutoFilter(ws: XLSX.WorkSheet, fromRow: number, colCount: number, lastRow: number) {
+  const endCol = XLSX.utils.encode_col(colCount - 1);
+  ws['!autofilter'] = { ref: `A${fromRow}:${endCol}${lastRow}` };
 }
 
 // ─── Merge cells helper ───────────────────────────────────────────────────────
@@ -399,8 +411,8 @@ export function generateLeaveHistoryReport(
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  const cols = ['#', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-  const colWidths = [6, 20, 14, 14, 8, 12, 40, 36];
+  const cols = ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
+  const colWidths = [6, 20, 14, 14, 18, 8, 12, 40, 36];
   let rowIdx = addCompanyHeader(ws, cols.length, `Leave History — ${staffName} (${filterLabel})`);
 
   cols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
@@ -412,10 +424,11 @@ export function generateLeaveHistoryReport(
     writeCell(ws, rowIdx, 1, row.leave_type, s);
     writeCell(ws, rowIdx, 2, row.start_date, s);
     writeCell(ws, rowIdx, 3, row.end_date, s);
-    writeCell(ws, rowIdx, 4, row.days, s);
-    writeCell(ws, rowIdx, 5, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
-    writeCell(ws, rowIdx, 6, row.reason, s);
-    writeCell(ws, rowIdx, 7, row.admin_response || 'N/A', s);
+    writeCell(ws, rowIdx, 4, row.duration || 'Full Day', s);
+    writeCell(ws, rowIdx, 5, row.days, s);
+    writeCell(ws, rowIdx, 6, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
+    writeCell(ws, rowIdx, 7, row.reason, s);
+    writeCell(ws, rowIdx, 8, row.admin_response || 'N/A', s);
     rowIdx++;
   });
 
@@ -425,8 +438,9 @@ export function generateLeaveHistoryReport(
   writeCell(ws, rowIdx, 1, `${rows.length} records`, ts);
   writeCell(ws, rowIdx, 2, '', ts);
   writeCell(ws, rowIdx, 3, '', ts);
-  writeCell(ws, rowIdx, 4, rows.reduce((s, r) => s + r.days, 0), ts);
-  for (let c = 5; c < cols.length; c++) writeCell(ws, rowIdx, c, '', ts);
+  writeCell(ws, rowIdx, 4, '', ts);
+  writeCell(ws, rowIdx, 5, rows.reduce((s, r) => s + r.days, 0), ts);
+  for (let c = 6; c < cols.length; c++) writeCell(ws, rowIdx, c, '', ts);
 
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx, c: cols.length - 1 } });
   setColWidths(ws, colWidths);
