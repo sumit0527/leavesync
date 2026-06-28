@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Shield, Eye, EyeOff , Home} from 'lucide-react';
 
 export default function AdminRegister() {
   const [username, setUsername] = useState('');
@@ -88,6 +88,14 @@ export default function AdminRegister() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center p-4">
+      <div className="absolute top-4 left-4 z-50">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/" title="Back to Home Page">
+            <Home className="mr-2 h-4 w-4" />
+            Home
+          </Link>
+        </Button>
+      </div>
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
