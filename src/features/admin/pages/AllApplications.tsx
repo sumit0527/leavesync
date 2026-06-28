@@ -6,13 +6,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { useDepartments } from '@/hooks/use-departments';
 import { useLeaveTypes } from '@/hooks/use-leave-types';
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, Clock, Download, FileText, Search, ExternalLink, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { jsPDF } from 'jspdf';
+
+import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
+
+const formatLeaveDuration = (app: any) => {
+  if (app.leave_duration === 'half_day') {
+    return app.half_day_period === 'second_half' ? 'Half Day — Second Half' : 'Half Day — First Half';
+  }
+  return 'Full Day';
+};
 
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
@@ -80,76 +95,62 @@ export default function AllApplications() {
     }
   };
 
-  const downloadReport = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 18;
+  const getFilterLabel = () => {
+    const parts: string[] = [];
+    if (filter !== 'all') parts.push(filter.charAt(0).toUpperCase() + filter.slice(1));
+    if (filterYear !== 'all') parts.push(filterYear);
+    if (filterDepartment !== 'all') {
+      const dept = departments.find(d => d.id === filterDepartment);
+      if (dept) parts.push(dept.name);
+    }
+    if (filterLeaveType !== 'all') {
+      const type = leaveTypes.find(t => t.id === filterLeaveType);
+      if (type) parts.push(type.name);
+    }
+    if (startDate || endDate) parts.push(`${startDate || 'Start'} to ${endDate || 'End'}`);
+    return parts.length > 0 ? parts.join(', ') : 'All Records';
+  };
 
-    // Header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College — All Applications Report', pageW / 2, y, { align: 'center' });
-    y += 7;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')} | Total records: ${filteredApplications.length}`, pageW / 2, y, { align: 'center' });
-    y += 8;
+  const getReportRows = () => filteredApplications.map((app, idx) => ({
+    serial: idx + 1,
+    staff_name: app.staff?.full_name || 'N/A',
+    department: app.staff?.department?.name || 'N/A',
+    leave_type: app.leave_type?.name || 'N/A',
+    start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
+    end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
+    duration: formatLeaveDuration(app),
+    days: app.leave_days,
+    status: app.status,
+    reason: app.reason || '',
+    admin_response: app.admin_response || 'N/A',
+  }));
 
-    // Table header
-    const headers = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Admin Response'];
-    const colWidths = [8, 36, 32, 28, 24, 24, 12, 20, 50, 50];
-    const colX: number[] = [];
-    let xCursor = 10;
-    colWidths.forEach((w) => { colX.push(xCursor); xCursor += w; });
+  const exportToExcel = () => {
+    const wb = generateAllApplicationsReport(getReportRows(), getFilterLabel());
+    downloadWorkbook(wb, `all_applications_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
 
-    const drawRow = (row: string[], isHeader: boolean, rowY: number) => {
-      if (isHeader) {
-        doc.setFillColor(30, 20, 10);
-        doc.rect(10, rowY - 4, pageW - 20, 7, 'F');
-        doc.setTextColor(212, 175, 55);
-        doc.setFont('helvetica', 'bold');
-      } else {
-        doc.setTextColor(30, 30, 30);
-        doc.setFont('helvetica', 'normal');
-      }
-      row.forEach((cell, i) => {
-        const maxW = colWidths[i] - 1;
-        const lines = doc.splitTextToSize(String(cell), maxW);
-        doc.text(lines[0], colX[i], rowY);
-      });
-    };
-
-    doc.setFontSize(8);
-    drawRow(headers, true, y);
-    y += 7;
-
-    doc.setDrawColor(200, 175, 100);
-    doc.line(10, y - 1, pageW - 10, y - 1);
-
-    filteredApplications.forEach((app, idx) => {
-      if (y > 185) { doc.addPage(); y = 18; doc.setFontSize(8); drawRow(headers, true, y); y += 7; }
-      const row = [
-        String(idx + 1),
-        app.staff?.full_name || '',
-        app.staff?.department?.name || 'N/A',
-        app.leave_type?.name || 'N/A',
-        format(new Date(app.start_date), 'dd/MM/yy'),
-        format(new Date(app.end_date), 'dd/MM/yy'),
-        String(app.leave_days),
-        app.status,
-        app.reason || '',
-        app.admin_response || 'N/A',
-      ];
-      const isEven = idx % 2 === 0;
-      if (isEven) {
-        doc.setFillColor(250, 248, 240);
-        doc.rect(10, y - 3.5, pageW - 20, 6.5, 'F');
-      }
-      drawRow(row, false, y);
-      y += 7;
+  const exportToPDF = () => {
+    const rows = getReportRows();
+    downloadTablePdf({
+      title: isMainAdmin ? 'Principal Leave Applications Report' : 'All Leave Applications Report',
+      subtitle: `Filter: ${getFilterLabel()}`,
+      headers: ['#', 'Applicant', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
+      rows: rows.map((row) => [
+        row.serial,
+        row.staff_name,
+        row.department,
+        row.leave_type,
+        row.start_date,
+        row.end_date,
+        row.duration || 'Full Day',
+        row.days,
+        row.status.charAt(0).toUpperCase() + row.status.slice(1),
+        row.reason || '-',
+        row.admin_response || 'N/A',
+      ]),
+      filename: `all_applications_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
     });
-
-    doc.save(`all_applications_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
@@ -183,10 +184,24 @@ export default function AllApplications() {
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={downloadReport} variant="secondary">
-              <Download className="mr-2 h-4 w-4" />
-              Download Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download as Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -295,10 +310,24 @@ export default function AllApplications() {
         </Card>
 
         <div className="flex justify-end">
-          <Button onClick={downloadReport} variant="secondary">
-            <Download className="mr-2 h-4 w-4" />
-            Download Report
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Download Report
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportToPDF}>
+                <FileText className="mr-2 h-4 w-4" />
+                Download as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToExcel}>
+                <Download className="mr-2 h-4 w-4" />
+                Download as Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {loading ? (
@@ -335,7 +364,7 @@ export default function AllApplications() {
                       <p className="text-sm font-medium">
                         {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd, yyyy')}
                       </p>
-                      <p className="text-xs text-muted-foreground">{app.leave_days} days</p>
+                      <p className="text-xs text-muted-foreground">{formatLeaveDuration(app)} • {app.leave_days} day{app.leave_days !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -348,6 +377,10 @@ export default function AllApplications() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Department</p>
                       <p className="text-sm font-semibold">{app.staff?.department?.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                      <p className="text-sm font-semibold">{formatLeaveDuration(app)}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Status</p>
