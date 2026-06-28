@@ -9,8 +9,15 @@ import {
   XAxis, YAxis, ResponsiveContainer, Legend, Tooltip, CartesianGrid,
 } from 'recharts';
 import { Download, TrendingUp, FileText, Calendar, Users } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
+import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
 
 interface DepartmentStats {
   department: string;
@@ -160,78 +167,60 @@ export default function Analytics() {
   }));
 
   const downloadAnalytics = () => {
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    let y = 20;
-
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('G.D. Sawant College', pageW / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(14);
-    doc.text(`Leave Management Analytics — ${selectedYear}`, pageW / 2, y, { align: 'center' });
-    y += 6;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'PPP HH:mm')}`, pageW / 2, y, { align: 'center' });
-    y += 12;
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Overall Statistics', 14, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    [['Metric', 'Value'], ['Total Applications', String(stats.total)], ['Approved', String(stats.approved)], ['Rejected', String(stats.rejected)], ['Pending', String(stats.pending)]].forEach((row, i) => {
-      doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
-      doc.text(row[0], 14, y); doc.text(row[1], 80, y); y += 6;
-    });
-    y += 6;
-
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Department-wise Breakdown', 14, y);
-    y += 6;
-    doc.setFontSize(10);
-    const deptHeaders = ['Department', 'Total', 'Approved', 'Rejected', 'Pending', 'Approval%'];
-    const colX = [14, 70, 95, 118, 143, 165];
-    doc.setFont('helvetica', 'bold');
-    deptHeaders.forEach((h, i) => doc.text(h, colX[i], y));
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setDrawColor(200);
-    doc.line(14, y, pageW - 14, y);
-    y += 4;
-    departmentStats.forEach((d) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      const pct = d.total > 0 ? ((d.approved / d.total) * 100).toFixed(1) + '%' : '0%';
-      [d.department, String(d.total), String(d.approved), String(d.rejected), String(d.pending), pct].forEach((v, i) => doc.text(v, colX[i], y));
-      y += 6;
-    });
-    y += 6;
-
-    if (y > 240) { doc.addPage(); y = 20; }
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Leave Type Distribution', 14, y);
-    y += 6;
-    doc.setFontSize(10);
-    const ltHeaders = ['Leave Type', 'Count', 'Percentage'];
-    const ltX = [14, 90, 130];
-    doc.setFont('helvetica', 'bold');
-    ltHeaders.forEach((h, i) => doc.text(h, ltX[i], y));
-    y += 5;
-    doc.line(14, y, pageW - 14, y);
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    leaveTypeStats.forEach((t) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      [t.leave_type, String(t.count), `${t.percentage}%`].forEach((v, i) => doc.text(v, ltX[i], y));
-      y += 6;
-    });
-
-    doc.save(`analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const deptRows = departmentStats.map(d => ({
+      department: d.department,
+      total: d.total,
+      approved: d.approved,
+      rejected: d.rejected,
+      pending: d.pending,
+      approval_pct: d.total > 0 ? parseFloat(((d.approved / d.total) * 100).toFixed(1)) : 0,
+    }));
+    const ltRows = leaveTypeStats.map(t => ({
+      leave_type: t.leave_type,
+      count: t.count,
+      percentage: t.percentage,
+    }));
+    const wb = generateAnalyticsReport(
+      { total: stats.total, approved: stats.approved, rejected: stats.rejected, pending: stats.pending },
+      deptRows,
+      ltRows,
+      selectedYear,
+    );
+    downloadWorkbook(wb, `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
+
+  const exportToPDF = () => {
+    const summaryRows = [
+      ['Total Applications', stats.total],
+      ['Approved', stats.approved],
+      ['Pending', stats.pending],
+      ['Rejected', stats.rejected],
+    ];
+    const departmentRows = departmentStats.map((d) => [
+      d.department,
+      d.total,
+      d.approved,
+      d.pending,
+      d.rejected,
+      d.total > 0 ? `${((d.approved / d.total) * 100).toFixed(1)}%` : '0%',
+    ]);
+    const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
+    downloadTablePdf({
+      title: `Analytics Report ${selectedYear}`,
+      subtitle: 'Summary + Department-wise + Leave Type Usage',
+      headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
+      rows: [
+        ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
+        ['Department-wise Applications', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
+        ...departmentRows.map((r) => ['Department', ...r]),
+        ['Leave Type Usage', 'Leave Type', 'Count', 'Percentage', '', '', ''],
+        ...leaveTypeRows.map((r) => ['Leave Type', ...r, '', '', '']),
+      ],
+      filename: `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+    });
+  };
+
+  const exportToExcel = downloadAnalytics;
 
   return (
     <AdminLayout>
@@ -253,10 +242,24 @@ export default function Analytics() {
                 ))}
               </SelectContent>
             </Select>
-            <Button onClick={downloadAnalytics} variant="secondary">
-              <Download className="mr-2 h-4 w-4" />
-              Download Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download as Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
