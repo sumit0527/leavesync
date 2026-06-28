@@ -279,10 +279,10 @@ export default function StaffRegister() {
                 Thank you for registering with G.D. Sawant College Leave Management System.
               </p>
               <p className="font-medium text-foreground">
-                Your account is currently pending approval by the administrator.
+                Your account is currently pending approval by the Principal.
               </p>
               <p>
-                You will receive a notification once your account has been reviewed. Please check back later or contact the administration office for any queries.
+                You will receive a notification once your account has been reviewed. Please check back later or contact the Principal office for any queries.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
