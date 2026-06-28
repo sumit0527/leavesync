@@ -37,9 +37,10 @@ const formatLeaveDuration = (app: LeaveApplication) => {
 export default function ViewLeave() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
+  const isDirectorView = isMainAdmin || isViewer;
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
-  const actionRoleLabel = isMainAdmin ? 'Director' : 'Principal';
-  const applicantRoleLabel = isMainAdmin ? 'Principal' : 'staff';
+  const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
+  const applicantRoleLabel = isDirectorView ? 'Principal' : 'staff';
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
 
@@ -58,7 +59,7 @@ export default function ViewLeave() {
   const visibleApplications = applications.filter((app) => {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
-    if (isMainAdmin) {
+    if (isDirectorView) {
       // Director's All/View Leave section is for Principal leave applications only.
       return staffRole === 'principal' || staffRole === 'admin';
     }
@@ -165,7 +166,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View leave applications in read-only mode' : isMainAdmin ? 'Review, approve or reject Principal leave applications' : 'Review, approve or reject staff leave applications'}
+            {isViewer ? 'View Director-level leave applications in read-only mode' : isDirectorView ? 'Review, approve or reject Principal leave applications' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -235,7 +236,7 @@ export default function ViewLeave() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">
-              {isMainAdmin ? 'Principal Leave Applications' : 'Leave Applications'}
+              {isDirectorView ? 'Principal Leave Applications' : 'Leave Applications'}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
