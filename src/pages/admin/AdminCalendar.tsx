@@ -42,12 +42,7 @@ interface DirectorReportRow {
   status: string;
   handledBy: string;
   createdDate: string;
-  leaveUsage: Record<string, number>;
-}
-
-interface DirectorReportData {
-  rows: DirectorReportRow[];
-  leaveTypeNames: string[];
+  leaveBalance: string;
 }
 
 const formatLeaveDuration = (app: any) => {
@@ -72,7 +67,7 @@ const clean = (value: unknown) => (value === null || value === undefined || valu
 export default function AdminCalendar() {
   const { isViewer, isPrincipal, isMainAdmin } = useAuth();
   const isCalendarReadOnly = isViewer || isPrincipal;
-  const canDownloadDirectorReports = isMainAdmin;
+  const canDownloadDirectorReports = isMainAdmin || isViewer;
   const { applications } = useLeaveApplications();
   const { holidays, refetch: refetchHolidays } = useHolidays();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -124,21 +119,21 @@ export default function AdminCalendar() {
     setSelectedDayLeaves(getLeavesOnDate(date));
   };
 
-  const buildUsageMap = (allocations: any[], leaveTypeNames: string[]) => {
-    const map = new Map<string, Record<string, number>>();
+  const buildBalanceMap = (allocations: any[]) => {
+    const map = new Map<string, string>();
     allocations.forEach(a => {
-      const staffId = a.staff_id;
       const name = a.leave_type?.name ?? 'Leave';
-      if (!map.has(staffId)) {
-        map.set(staffId, Object.fromEntries(leaveTypeNames.map(typeName => [typeName, 0])) as Record<string, number>);
-      }
-      const usage = map.get(staffId)!;
-      usage[name] = Number(a.used ?? 0);
+      const total = Number(a.total_allocated ?? 0);
+      const used = Number(a.used ?? 0);
+      const remaining = Number(a.remaining ?? (total - used));
+      const current = map.get(a.staff_id);
+      const part = `${name}: Total ${total}, Used ${used}, Left ${remaining}`;
+      map.set(a.staff_id, current ? `${current}; ${part}` : part);
     });
     return map;
   };
 
-  const getDirectorReportRows = async (scope: DirectorReportScope): Promise<DirectorReportData> => {
+  const getDirectorReportRows = async (scope: DirectorReportScope): Promise<DirectorReportRow[]> => {
     const roles = scope === 'staff' ? ['staff'] : ['principal', 'admin'];
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
@@ -150,7 +145,7 @@ export default function AdminCalendar() {
 
     const people = Array.isArray(profiles) ? profiles : [];
     const ids = people.map((p: any) => p.id).filter(Boolean);
-    if (ids.length === 0) return { rows: [], leaveTypeNames: [] };
+    if (ids.length === 0) return [];
 
     const { data: leaveRows, error: leaveError } = await supabase
       .from('leave_applications')
@@ -173,10 +168,7 @@ export default function AdminCalendar() {
 
     if (allocationError) throw allocationError;
 
-    const allocationList = Array.isArray(allocationRows) ? allocationRows : [];
-    const leaveTypeNames = Array.from(new Set(allocationList.map((a: any) => a.leave_type?.name ?? 'Leave'))).sort();
-    const usageMap = buildUsageMap(allocationList, leaveTypeNames);
-    const emptyUsage = () => Object.fromEntries(leaveTypeNames.map(typeName => [typeName, 0])) as Record<string, number>;
+    const balanceMap = buildBalanceMap(Array.isArray(allocationRows) ? allocationRows : []);
     const appsByStaff = new Map<string, any[]>();
     (Array.isArray(leaveRows) ? leaveRows : []).forEach((app: any) => {
       const list = appsByStaff.get(app.staff_id) ?? [];
@@ -184,9 +176,9 @@ export default function AdminCalendar() {
       appsByStaff.set(app.staff_id, list);
     });
 
-    const rows = people.flatMap((person: any) => {
+    return people.flatMap((person: any) => {
       const personApps = appsByStaff.get(person.id) ?? [];
-      const leaveUsage = usageMap.get(person.id) ?? emptyUsage();
+      const baseBalance = balanceMap.get(person.id) ?? `Overall Balance: ${person.leave_balance ?? 'N/A'}`;
       if (personApps.length === 0) {
         return [{
           name: clean(person.full_name),
@@ -200,7 +192,7 @@ export default function AdminCalendar() {
           status: clean(person.approval_status),
           handledBy: 'N/A',
           createdDate: formatDateTime(person.created_at),
-          leaveUsage,
+          leaveBalance: baseBalance,
         }];
       }
 
@@ -216,47 +208,37 @@ export default function AdminCalendar() {
         status: clean(app.status),
         handledBy: app.reviewer?.full_name ? clean(app.reviewer.full_name) : app.status === 'pending' ? 'Pending Review' : 'N/A',
         createdDate: formatDateTime(app.created_at),
-        leaveUsage,
+        leaveBalance: baseBalance,
       }));
     });
-
-    return { rows, leaveTypeNames };
   };
 
-  const exportDirectorReportExcel = (reportData: DirectorReportData, scope: DirectorReportScope) => {
+  const exportDirectorReportExcel = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
     const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
-    const rows = reportData.rows;
-    const leaveTypeNames = reportData.leaveTypeNames;
-    const leaveUsageHeaders = leaveTypeNames.map(name => `${name} Taken`);
     const aoa = [
       ['LeaveSync', title],
       ['Generated At', format(new Date(), 'dd/MM/yyyy HH:mm')],
       [],
-      ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', ...leaveUsageHeaders],
-      ...rows.map(r => [r.name, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, ...leaveTypeNames.map(name => r.leaveUsage[name] ?? 0)]),
+      ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
+      ...rows.map(r => [r.name, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, r.leaveBalance]),
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const lastCol = XLSX.utils.encode_col(10 + leaveUsageHeaders.length);
-    ws['!autofilter'] = { ref: `A4:${lastCol}4` };
+    ws['!autofilter'] = { ref: 'A4:L4' };
     ws['!cols'] = [
       { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
-      { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 },
-      ...leaveUsageHeaders.map(() => ({ wch: 16 })),
+      { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 48 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, scope === 'staff' ? 'Staff Report' : 'Principal Report');
     XLSX.writeFile(wb, `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const exportDirectorReportPDF = (reportData: DirectorReportData, scope: DirectorReportScope) => {
+  const exportDirectorReportPDF = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
     const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
-    const rows = reportData.rows;
-    const leaveTypeNames = reportData.leaveTypeNames;
-    const leaveUsageHeaders = leaveTypeNames.map(name => `${name} Taken`);
     downloadTablePdf({
       title,
-      subtitle: scope === 'staff' ? 'Staff records with leave type-wise taken days' : 'Principal records with leave type-wise taken days',
-      headers: ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', ...leaveUsageHeaders],
+      subtitle: scope === 'staff' ? 'Staff records with leave activity' : 'Principal records with leave activity',
+      headers: ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
       rows: rows.map((r) => [
         r.name,
         r.department,
@@ -269,7 +251,7 @@ export default function AdminCalendar() {
         r.status,
         r.handledBy,
         r.createdDate,
-        ...leaveTypeNames.map(name => r.leaveUsage[name] ?? 0),
+        r.leaveBalance,
       ]),
       filename: `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
       orientation: 'landscape',
@@ -278,15 +260,15 @@ export default function AdminCalendar() {
 
   const handleDirectorReportDownload = async (scope: DirectorReportScope, fileFormat: DirectorReportFormat) => {
     if (!canDownloadDirectorReports) {
-      toast.error('Only Director can download these reports');
+      toast.error('Only Director or Viewer can download these reports');
       return;
     }
     const loadingKey = `${scope}-${fileFormat}`;
     setReportLoading(loadingKey);
     try {
-      const reportData = await getDirectorReportRows(scope);
-      if (fileFormat === 'excel') exportDirectorReportExcel(reportData, scope);
-      else exportDirectorReportPDF(reportData, scope);
+      const rows = await getDirectorReportRows(scope);
+      if (fileFormat === 'excel') exportDirectorReportExcel(rows, scope);
+      else exportDirectorReportPDF(rows, scope);
       toast.success(`${scope === 'staff' ? 'Staff' : 'Principal'} report downloaded`);
     } catch (err) {
       console.error('Director report download failed:', err);
