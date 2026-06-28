@@ -35,13 +35,15 @@ export default function PendingApplications() {
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterLeaveType, setFilterLeaveType] = useState('all');
 
-  const actionRoleLabel = isMainAdmin ? 'Director' : 'Principal';
-  const applicantRoleLabel = isMainAdmin ? 'Principal' : 'staff';
+  const isDirectorView = isMainAdmin || isViewer;
+  const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
+  const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
+  const applicantRoleLabel = isDirectorView ? 'Principal' : 'staff';
 
   const pendingApplications = applications
     .filter(app => {
       const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-      if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin';
+      if (isDirectorView) return staffRole === 'principal' || staffRole === 'admin';
       if (isPrincipal && !isViewer) return staffRole === 'staff';
       return false;
     })
@@ -67,7 +69,7 @@ export default function PendingApplications() {
   };
 
   const generateAIResponse = async () => {
-    if (!selectedApp) return;
+    if (!selectedApp || !canManageLeaveApplications) return;
 
     setGeneratingResponse(true);
     try {
@@ -98,7 +100,7 @@ export default function PendingApplications() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedApp) return;
+    if (!selectedApp || !canManageLeaveApplications) return;
 
     setProcessing(true);
     setProcessingAppId(selectedApp.id);
@@ -258,25 +260,27 @@ export default function PendingApplications() {
                       </a>
                     </Button>
                   )}
-                  <div className="flex gap-3">
-                    <Button
-                      onClick={() => handleAction(app, 'approve')}
-                      disabled={processingAppId === app.id}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Approve
-                    </Button>
-                    <Button
-                      onClick={() => handleAction(app, 'reject')}
-                      disabled={processingAppId === app.id}
-                      variant="destructive"
-                      className="flex-1"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                  </div>
+                  {canManageLeaveApplications && (
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => handleAction(app, 'approve')}
+                        disabled={processingAppId === app.id}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Approve
+                      </Button>
+                      <Button
+                        onClick={() => handleAction(app, 'reject')}
+                        disabled={processingAppId === app.id}
+                        variant="destructive"
+                        className="flex-1"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Reject
+                      </Button>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Applied on {format(new Date(app.created_at), 'MMM dd, yyyy HH:mm')}
                   </p>
