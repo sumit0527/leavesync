@@ -18,7 +18,7 @@ import { CheckCircle, XCircle, FileText, Loader2, ExternalLink, Search, Sparkles
 import type { LeaveApplication } from '@/types';
 
 export default function PendingApplications() {
-  const { profile } = useAuth();
+  const { profile, isPrincipal, isMainAdmin, isViewer } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
@@ -27,6 +27,7 @@ export default function PendingApplications() {
   const [action, setAction] = useState<'approve' | 'reject'>('approve');
   const [response, setResponse] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [processingAppId, setProcessingAppId] = useState<string | null>(null);
   const [generatingResponse, setGeneratingResponse] = useState(false);
   
   // Search filters
@@ -34,7 +35,16 @@ export default function PendingApplications() {
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterLeaveType, setFilterLeaveType] = useState('all');
 
+  const actionRoleLabel = isMainAdmin ? 'Director' : 'Principal';
+  const applicantRoleLabel = isMainAdmin ? 'Principal' : 'staff';
+
   const pendingApplications = applications
+    .filter(app => {
+      const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+      if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin';
+      if (isPrincipal && !isViewer) return staffRole === 'staff';
+      return false;
+    })
     .filter(app => app.status === 'pending')
     .filter(app => {
       if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) {
@@ -91,64 +101,35 @@ export default function PendingApplications() {
     if (!selectedApp) return;
 
     setProcessing(true);
+    setProcessingAppId(selectedApp.id);
 
     try {
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      
-      const { error: updateError } = await supabase
-        .from('leave_applications')
-        .update({
-          status: newStatus,
-          admin_response: response.trim(),
-          reviewed_by: profile?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', selectedApp.id);
-
-      if (updateError) throw updateError;
-
-      if (action === 'approve') {
-        const { error: balanceError } = await supabase
-          .from('profiles')
-          .update({
-            leave_balance: (selectedApp.staff?.leave_balance || 0) - selectedApp.leave_days
-          })
-          .eq('id', selectedApp.staff_id);
-
-        if (balanceError) throw balanceError;
-      }
-
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: selectedApp.staff_id,
-          title: `Leave Application ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-          message: `Your leave application from ${format(new Date(selectedApp.start_date), 'MMM dd')} to ${format(new Date(selectedApp.end_date), 'MMM dd')} has been ${action === 'approve' ? 'approved' : 'rejected'}. ${response.trim()}`,
-          type: action === 'approve' ? 'success' : 'error',
-          related_application_id: selectedApp.id
-        });
-
-      await supabase.functions.invoke('send-approval-notification', {
-        body: {
-          staffName: selectedApp.staff?.full_name,
-          staffEmail: selectedApp.staff?.email,
-          leaveType: selectedApp.leave_type?.name ?? 'Leave',
-          startDate: selectedApp.start_date,
-          endDate: selectedApp.end_date,
-          leaveDays: selectedApp.leave_days,
-          status: newStatus,
-          adminResponse: response.trim()
-        }
+      const { data, error: actionError } = await supabase.rpc('handle_leave_application_action', {
+        p_application_id: selectedApp.id,
+        p_action: action,
+        p_response: response.trim() || null,
       });
 
-      toast.success(`Application ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
+      if (actionError) throw actionError;
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        toast.error(result?.message || 'This application has already been handled.');
+        setDialogOpen(false);
+        await refetch();
+        return;
+      }
+
+      toast.success(result.message || `Application ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
       setDialogOpen(false);
-      refetch();
+      setSelectedApp(null);
+      await refetch();
     } catch (error) {
       console.error('Action error:', error);
       toast.error(`Failed to ${action} application`);
     } finally {
       setProcessing(false);
+      setProcessingAppId(null);
     }
   };
 
@@ -157,7 +138,7 @@ export default function PendingApplications() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Pending Applications</h1>
-          <p className="mt-2 text-muted-foreground">Review and process leave requests</p>
+          <p className="mt-2 text-muted-foreground">Review and process pending {applicantRoleLabel} leave requests</p>
         </div>
 
         <Card>
@@ -280,6 +261,7 @@ export default function PendingApplications() {
                   <div className="flex gap-3">
                     <Button
                       onClick={() => handleAction(app, 'approve')}
+                      disabled={processingAppId === app.id}
                       className="flex-1 bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
@@ -287,6 +269,7 @@ export default function PendingApplications() {
                     </Button>
                     <Button
                       onClick={() => handleAction(app, 'reject')}
+                      disabled={processingAppId === app.id}
                       variant="destructive"
                       className="flex-1"
                     >
@@ -307,7 +290,7 @@ export default function PendingApplications() {
           <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
             <DialogHeader>
               <DialogTitle className="font-playfair-display">
-                {action === 'approve' ? 'Approve' : 'Reject'} Leave Application
+                {action === 'approve' ? 'Approve' : 'Reject'} {applicantRoleLabel} Leave Application
               </DialogTitle>
               <DialogDescription>
                 Provide a response for {selectedApp?.staff?.full_name}
@@ -316,7 +299,7 @@ export default function PendingApplications() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="response">Admin Response</Label>
+                  <Label htmlFor="response">{actionRoleLabel} Response</Label>
                   <Button
                     type="button"
                     variant="outline"
