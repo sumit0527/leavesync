@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useLeaveApplications, useLeaveStats } from '@/hooks/use-leave-applications';
+import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { Badge } from '@/components/ui/badge';
 import { FileCheck, Users, CheckCircle, XCircle, Clock, Building2, UserPlus, CalendarDays, BarChart3, Tags } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -15,7 +15,6 @@ const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover
 export default function AdminDashboard() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading } = useLeaveApplications();
-  const { stats } = useLeaveStats();
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
   const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; role?: string; department?: { name: string } }[]>([]);
@@ -37,7 +36,10 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchNewStaff = useCallback(async () => {
-    const rolesToShow = isMainAdmin ? ['principal', 'admin'] : isPrincipal ? ['staff'] : ['staff', 'principal', 'admin'];
+    // Home dashboard registration box should stay useful:
+    // Principal sees pending Staff registrations for action.
+    // Director monitors pending Staff registrations here (Principal registration is limited to 2 users and is handled from notifications/employee flow).
+    const rolesToShow = ['staff'];
 
     const { data, error } = await supabase
       .from('profiles')
@@ -75,13 +77,33 @@ export default function AdminDashboard() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchCounts, fetchNewStaff]);
 
+  const dashboardStatsApps = applications.filter((app) => {
+    const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
+
+    // Principal management dashboard analyzes Staff leave work only.
+    if (isPrincipal && !isMainAdmin) return applicantRole === 'staff';
+
+    // Director action dashboard should not mix Staff leave counts into Principal leave action counts.
+    // Staff activity is still visible in Recent Applications/reporting where it is labelled clearly.
+    if (isMainAdmin) return applicantRole === 'principal' || applicantRole === 'admin';
+
+    return true;
+  });
+
+  const dashboardStats = {
+    total: dashboardStatsApps.length,
+    approved: dashboardStatsApps.filter((a) => a.status === 'approved').length,
+    rejected: dashboardStatsApps.filter((a) => a.status === 'rejected').length,
+    pending: dashboardStatsApps.filter((a) => a.status === 'pending').length,
+  };
+
   const dashboardCards = [
-    { title: 'Pending Leaves', value: stats.pending, note: 'Awaiting action', icon: Clock, accent: 'text-yellow-600', primary: true },
+    { title: 'Pending Leaves', value: dashboardStats.pending, note: isMainAdmin ? 'Principal leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
     { title: 'Total Employees', value: employeeCount, note: 'Active staff', icon: Users, accent: 'text-primary' },
     { title: 'Departments', value: departmentCount, note: 'Active departments', icon: Building2, accent: 'text-muted-foreground' },
-    { title: 'Total Applications', value: stats.total, note: 'All time', icon: FileCheck, accent: 'text-muted-foreground' },
-    { title: 'Approved', value: stats.approved, note: 'Applications', icon: CheckCircle, accent: 'text-green-600' },
-    { title: 'Rejected', value: stats.rejected, note: 'Applications', icon: XCircle, accent: 'text-red-600' },
+    { title: 'Total Applications', value: dashboardStats.total, note: isMainAdmin ? 'Principal leave apps' : 'Staff leave apps', icon: FileCheck, accent: 'text-muted-foreground' },
+    { title: 'Approved', value: dashboardStats.approved, note: 'Applications', icon: CheckCircle, accent: 'text-green-600' },
+    { title: 'Rejected', value: dashboardStats.rejected, note: 'Applications', icon: XCircle, accent: 'text-red-600' },
   ];
 
   const quickActions = [
@@ -232,10 +254,10 @@ export default function AdminDashboard() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2 text-lg">
                   <UserPlus className="h-4 w-4 text-primary" />
-                  {isMainAdmin ? 'New Principal Registrations' : 'New Staff Registrations'}
+                  New Staff Registrations
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {isMainAdmin ? 'Pending Principal approvals for Director action' : 'Pending staff approvals'}
+                  {isMainAdmin ? 'Pending staff registrations for Director monitoring' : 'Pending staff approvals'}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
@@ -244,14 +266,14 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-4 pt-1">
               {newStaffList.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{isMainAdmin ? 'No new Principal registrations' : 'No new staff registrations'}</p>
+                <p className="text-sm text-muted-foreground">No new staff registrations</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {newStaffList.map((staff) => (
                     <div key={staff.id} className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
                       <p className="truncate text-sm font-medium">{staff.full_name}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {staff.role === 'staff' ? (staff.department?.name || 'No department selected') : 'Principal account approval'}
+                        {staff.department?.name || 'No department selected'}
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         Registered {format(new Date(staff.created_at), 'MMM dd')}
@@ -267,3 +289,4 @@ export default function AdminDashboard() {
     </AdminLayout>
   );
 }
+  
