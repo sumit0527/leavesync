@@ -11,7 +11,7 @@ export default function AdminNotifications() {
   const { profile, portalRoleLabel, isViewer, isPrincipal, isMainAdmin } = useAuth();
 
   const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : isMainAdmin ? 'director' : 'own';
-  const isRequestInbox = isPrincipal || isMainAdmin;
+  const isRequestInbox = isPrincipal || isMainAdmin || isViewer;
 
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(
     profile?.id,
@@ -20,14 +20,14 @@ export default function AdminNotifications() {
 
   const pageTitle = isPrincipal
     ? 'Principal Request Inbox'
-    : isMainAdmin
-      ? 'Director Request Inbox'
+    : (isMainAdmin || isViewer)
+      ? `${portalRoleLabel} Request Inbox`
       : `${portalRoleLabel} Notifications`;
 
   const description = isPrincipal
     ? 'Only pending staff registrations and pending staff leave requests are shown here. Once handled, they disappear from this inbox.'
-    : isMainAdmin
-      ? 'Only pending Principal registrations and pending Principal leave requests are shown here. Once handled, they disappear from this inbox.'
+    : (isMainAdmin || isViewer)
+      ? 'Director-level request view: pending Principal registrations, pending Principal leave requests, pending staff registrations, and pending staff leave requests are visible here. Viewer can only view/clear local popup items.'
       : 'Read-only notification records.';
 
   return (
@@ -38,7 +38,7 @@ export default function AdminNotifications() {
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
             <p className="mt-2 text-muted-foreground">{description}</p>
           </div>
-          {!isViewer && notifications.some(n => !n.is_read) && (
+          {notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -96,7 +96,7 @@ export default function AdminNotifications() {
                       Review this request from the correct section. Staff requests are handled by Principal. Principal requests are handled by Director.
                     </p>
                   )}
-                  {!isViewer && !notification.is_read && (
+                  {!notification.is_read && (
                     <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
                       Mark as Read
                     </Button>
