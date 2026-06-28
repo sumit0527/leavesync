@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,7 +19,6 @@ import {
 import { format } from 'date-fns';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface DepartmentStats {
   department: string;
@@ -75,7 +75,8 @@ const renderCustomLegend = (props: any) => {
 };
 
 export default function Analytics() {
-  const { isMainAdmin, isPrincipal, portalRoleLabel } = useAuth();
+  const { isPrincipal, isMainAdmin, isViewer } = useAuth();
+  const isDirectorView = isMainAdmin || isViewer;
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -102,59 +103,60 @@ export default function Analytics() {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      // Fetch leave apps with applicant role so every role dashboard can show the correct scope.
       const { data: allData } = await supabase
         .from('leave_applications')
         .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, department:departments(name))')
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd);
 
-      if (allData) {
-        const allRows = Array.isArray(allData) ? allData : [];
-        const staffRows = allRows.filter((a: any) => String(a.staff?.role ?? '').toLowerCase() === 'staff');
-        const principalRows = allRows.filter((a: any) => ['principal', 'admin'].includes(String(a.staff?.role ?? '').toLowerCase()));
+      const rows = Array.isArray(allData) ? allData : [];
 
-        // Principal analytics = staff-only analysis.
-        // Director summary/status/leave-type analytics = Principal-only analysis.
-        // Director department-wise section = staff-only analysis because Principals do not belong to departments.
-        const summaryRows = isMainAdmin ? principalRows : staffRows;
-        const departmentRowsSource = staffRows;
+      // Principal Analytics = staff analysis only.
+      // Director/Viewer Analytics summary = Principal leave stats only.
+      // Director/Viewer department chart = staff department tracking only.
+      const primaryRows = rows.filter((app: any) => {
+        const role = String(app.staff?.role ?? '').toLowerCase();
+        if (isDirectorView) return role === 'principal' || role === 'admin';
+        if (isPrincipal) return role === 'staff';
+        return role === 'staff';
+      });
 
-        setStats({
-          total: summaryRows.length,
-          approved: summaryRows.filter((a: any) => a.status === 'approved').length,
-          rejected: summaryRows.filter((a: any) => a.status === 'rejected').length,
-          pending: summaryRows.filter((a: any) => a.status === 'pending').length,
-        });
+      const departmentRowsSource = rows.filter((app: any) => String(app.staff?.role ?? '').toLowerCase() === 'staff');
 
-        const deptMap = new Map<string, DepartmentStats>();
-        departmentRowsSource.forEach((app: any) => {
-          const deptName = app.staff?.department?.name || 'No Department';
-          if (!deptMap.has(deptName)) {
-            deptMap.set(deptName, { department: deptName, total: 0, approved: 0, rejected: 0, pending: 0 });
-          }
-          const dept = deptMap.get(deptName)!;
-          dept.total++;
-          if (app.status === 'approved') dept.approved++;
-          else if (app.status === 'rejected') dept.rejected++;
-          else dept.pending++;
-        });
-        setDepartmentStats(Array.from(deptMap.values()));
+      setStats({
+        total: primaryRows.length,
+        approved: primaryRows.filter((a: any) => a.status === 'approved').length,
+        rejected: primaryRows.filter((a: any) => a.status === 'rejected').length,
+        pending: primaryRows.filter((a: any) => a.status === 'pending').length,
+      });
 
-        const typeMap = new Map<string, number>();
-        summaryRows.forEach((app: any) => {
-          const typeName = app.leave_type?.name || 'Unknown';
-          typeMap.set(typeName, (typeMap.get(typeName) || 0) + 1);
-        });
-        const total = summaryRows.length;
-        setLeaveTypeStats(
-          Array.from(typeMap.entries()).map(([leave_type, count]) => ({
-            leave_type,
-            count,
-            percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-          }))
-        );
-      }
+      const deptMap = new Map<string, DepartmentStats>();
+      departmentRowsSource.forEach((app: any) => {
+        const deptName = app.staff?.department?.name || 'No Department';
+        if (!deptMap.has(deptName)) {
+          deptMap.set(deptName, { department: deptName, total: 0, approved: 0, rejected: 0, pending: 0 });
+        }
+        const dept = deptMap.get(deptName)!;
+        dept.total++;
+        if (app.status === 'approved') dept.approved++;
+        else if (app.status === 'rejected') dept.rejected++;
+        else dept.pending++;
+      });
+      setDepartmentStats(Array.from(deptMap.values()));
+
+      const typeMap = new Map<string, number>();
+      primaryRows.forEach((app: any) => {
+        const typeName = app.leave_type?.name || 'Unknown';
+        typeMap.set(typeName, (typeMap.get(typeName) || 0) + 1);
+      });
+      const total = primaryRows.length;
+      setLeaveTypeStats(
+        Array.from(typeMap.entries()).map(([leave_type, count]) => ({
+          leave_type,
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        }))
+      );
     } catch (err) {
       console.error('Analytics error:', err);
     } finally {
@@ -216,7 +218,7 @@ export default function Analytics() {
     const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
     downloadTablePdf({
       title: `Analytics Report ${selectedYear}`,
-      subtitle: isMainAdmin ? 'Principal summary + Staff department-wise + Principal leave type usage' : 'Staff summary + Staff department-wise + Staff leave type usage',
+      subtitle: 'Summary + Department-wise + Leave Type Usage',
       headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
       rows: [
         ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
@@ -237,7 +239,7 @@ export default function Analytics() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Analytics Dashboard</h1>
-            <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'Principal leave summary with staff department tracking' : isPrincipal ? 'Staff leave statistics and insights' : 'Comprehensive leave statistics and insights'}</p>
+            <p className="mt-2 text-muted-foreground">{isDirectorView ? 'Principal leave statistics with staff department tracking' : 'Staff leave statistics and insights'}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Year selector */}
@@ -306,7 +308,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Application Status</CardTitle>
-              <CardDescription>{isMainAdmin ? 'Principal applications only' : 'Staff applications only'} — {selectedYear}</CardDescription>
+              <CardDescription>{isDirectorView ? 'Principal leave status' : 'Staff leave status'} — {selectedYear}</CardDescription>
             </CardHeader>
             <CardContent>
               {stats.total === 0 ? (
@@ -341,7 +343,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Leave Type Distribution</CardTitle>
-              <CardDescription>{isMainAdmin ? 'Principal leave categories only' : 'Staff leave categories only'}</CardDescription>
+              <CardDescription>{isDirectorView ? 'Principal applications by leave category' : 'Staff applications by leave category'}</CardDescription>
             </CardHeader>
             <CardContent>
               {leaveTypePieData.length === 0 ? (
@@ -368,7 +370,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Quick Summary</CardTitle>
-              <CardDescription>{isMainAdmin ? 'Principal statistics only' : 'Staff statistics only'} — {selectedYear}</CardDescription>
+              <CardDescription>{isDirectorView ? 'Principal statistics only' : 'Staff statistics only'} — {selectedYear}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-2">
               {[
@@ -444,7 +446,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">Department Statistics</CardTitle>
-            <CardDescription>Staff-only breakdown by department — {selectedYear}</CardDescription>
+            <CardDescription>Staff department-wise breakdown only — {selectedYear}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="w-full max-w-full overflow-x-auto">
