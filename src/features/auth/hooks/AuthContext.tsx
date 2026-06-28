@@ -142,12 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (userProfile.approval_status === 'pending') {
           await supabase.auth.signOut();
-          throw new Error('Your account is pending approval by admin');
+          throw new Error(userProfile.role === 'staff' ? 'Your account is pending approval by Principal' : userProfile.role === 'principal' || userProfile.role === 'admin' ? 'Your account is pending approval by Director' : 'Your account is pending approval');
         }
         
         if (userProfile.approval_status === 'rejected') {
           await supabase.auth.signOut();
-          throw new Error('Your account has been rejected. Please contact administration');
+          throw new Error(userProfile.role === 'staff' ? 'Your account has been rejected. Please contact Principal office' : userProfile.role === 'principal' || userProfile.role === 'admin' ? 'Your account has been rejected. Please contact Director office' : 'Your account has been rejected');
         }
 
         if (adminSecret && !['admin', 'principal', 'main_admin', 'viewer'].includes(userProfile.role)) {
