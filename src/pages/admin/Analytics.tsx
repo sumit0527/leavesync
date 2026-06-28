@@ -16,8 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
 
 interface DepartmentStats {
   department: string;
@@ -190,35 +190,34 @@ export default function Analytics() {
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const margin = 40;
-    let y = 45;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text(`LeaveSync - Analytics Report ${selectedYear}`, margin, y);
-    y += 24;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, y);
-    y += 28;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Summary', margin, y);
-    y += 16;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Total: ${stats.total}   Approved: ${stats.approved}   Pending: ${stats.pending}   Rejected: ${stats.rejected}`, margin, y);
-    y += 28;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Department-wise Applications', margin, y);
-    y += 18;
-    doc.setFont('helvetica', 'normal');
-    departmentStats.forEach((d) => { doc.text(`${d.department}: Total ${d.total}, Approved ${d.approved}, Pending ${d.pending}, Rejected ${d.rejected}`, margin, y); y += 16; if (y > 750) { doc.addPage(); y = 45; } });
-    y += 14;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Leave Type Usage', margin, y);
-    y += 18;
-    doc.setFont('helvetica', 'normal');
-    leaveTypeStats.forEach((t) => { doc.text(`${t.leave_type}: ${t.count} applications (${t.percentage}%)`, margin, y); y += 16; if (y > 750) { doc.addPage(); y = 45; } });
-    doc.save(`analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const summaryRows = [
+      ['Total Applications', stats.total],
+      ['Approved', stats.approved],
+      ['Pending', stats.pending],
+      ['Rejected', stats.rejected],
+    ];
+    const departmentRows = departmentStats.map((d) => [
+      d.department,
+      d.total,
+      d.approved,
+      d.pending,
+      d.rejected,
+      d.total > 0 ? `${((d.approved / d.total) * 100).toFixed(1)}%` : '0%',
+    ]);
+    const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
+    downloadTablePdf({
+      title: `Analytics Report ${selectedYear}`,
+      subtitle: 'Summary + Department-wise + Leave Type Usage',
+      headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
+      rows: [
+        ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
+        ['Department-wise Applications', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
+        ...departmentRows.map((r) => ['Department', ...r]),
+        ['Leave Type Usage', 'Leave Type', 'Count', 'Percentage', '', '', ''],
+        ...leaveTypeRows.map((r) => ['Leave Type', ...r, '', '', '']),
+      ],
+      filename: `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+    });
   };
 
   const exportToExcel = downloadAnalytics;
