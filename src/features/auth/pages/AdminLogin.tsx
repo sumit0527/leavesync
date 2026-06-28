@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Shield, KeyRound, Eye, EyeOff, Users, Crown, UserCheck } from 'lucide-react';
+import { Loader2, Shield, KeyRound, Eye, EyeOff, Users, Crown, UserCheck , Home} from 'lucide-react';
 import { supabase } from '@/db/supabase';
 
 export default function AdminLogin() {
@@ -195,6 +195,14 @@ export default function AdminLogin() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center p-4">
+      <div className="absolute top-4 left-4 z-50">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/" title="Back to Home Page">
+            <Home className="mr-2 h-4 w-4" />
+            Home
+          </Link>
+        </Button>
+      </div>
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
