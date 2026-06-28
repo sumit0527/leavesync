@@ -37,8 +37,9 @@ const formatLeaveDuration = (app: LeaveApplication) => {
 export default function ViewLeave() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
-  const canManageStaffLeaves = isPrincipal && !isViewer;
-  const isDirectorReadOnly = isMainAdmin;
+  const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
+  const actionRoleLabel = isMainAdmin ? 'Director' : 'Principal';
+  const applicantRoleLabel = isMainAdmin ? 'Principal' : 'staff';
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
 
@@ -47,6 +48,7 @@ export default function ViewLeave() {
   const [action, setAction] = useState<'approve' | 'reject'>('approve');
   const [response, setResponse] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [processingAppId, setProcessingAppId] = useState<string | null>(null);
 
   const [searchName, setSearchName] = useState('');
   const [filterDept, setFilterDept] = useState('all');
@@ -78,6 +80,7 @@ export default function ViewLeave() {
   });
 
   const openDialog = (app: LeaveApplication, act: 'approve' | 'reject') => {
+    if (app.status !== 'pending' || processingAppId === app.id) return;
     setSelectedApp(app);
     setAction(act);
     setResponse('');
@@ -85,73 +88,50 @@ export default function ViewLeave() {
   };
 
   const handleConfirm = async () => {
-    if (!selectedApp || !profile || !canManageStaffLeaves) return;
+    if (!selectedApp || !profile || !canManageLeaveApplications) return;
+
     setProcessing(true);
+    setProcessingAppId(selectedApp.id);
+
     try {
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-
-      const { error: updateError } = await supabase
-        .from('leave_applications')
-        .update({
-          status: newStatus,
-          admin_response: response || null,
-          reviewed_by: profile.id,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', selectedApp.id);
-
-      if (updateError) throw updateError;
-
-      // Deduct leave balance on approval
-      if (action === 'approve' && selectedApp.staff_id) {
-        await supabase.rpc('deduct_leave_balance', {
-          p_staff_id: selectedApp.staff_id,
-          p_days: selectedApp.leave_days,
-        });
-      }
-
-      // Notify staff member
-      await supabase.from('notifications').insert({
-        user_id: selectedApp.staff_id,
-        title: `Leave ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
-        message: response
-          ? `Your leave application has been ${newStatus}. Principal note: ${response}`
-          : `Your leave application has been ${newStatus}.`,
-        type: `leave_${newStatus}`,
-        related_application_id: selectedApp.id,
+      const { data, error: actionError } = await supabase.rpc('handle_leave_application_action', {
+        p_application_id: selectedApp.id,
+        p_action: action,
+        p_response: response.trim() || null,
       });
 
-      // Send email to staff
-      if (selectedApp.staff?.email) {
-        supabase.functions.invoke('send-approval-notification', {
-          body: {
-            staffName: selectedApp.staff?.full_name,
-            staffEmail: selectedApp.staff?.email,
-            leaveType: selectedApp.leave_type?.name ?? 'Leave',
-            startDate: selectedApp.start_date,
-            endDate: selectedApp.end_date,
-            leaveDays: selectedApp.leave_days,
-            status: newStatus,
-            adminResponse: response.trim(),
-          },
-        }).catch((err: unknown) => console.error('Email notification failed:', err));
+      if (actionError) throw actionError;
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        toast.error(result?.message || 'This application has already been handled.');
+        setDialogOpen(false);
+        await refetch();
+        return;
       }
 
-      toast.success(`Application ${newStatus} successfully`);
+      toast.success(result.message || `Application ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
       setDialogOpen(false);
-      refetch();
+      setSelectedApp(null);
+      await refetch();
     } catch (err) {
       toast.error('Failed to process application');
       console.error(err);
     } finally {
       setProcessing(false);
+      setProcessingAppId(null);
     }
   };
 
   const formatReviewSummary = (app: LeaveApplication) => {
-    if (app.status === 'pending') return 'Waiting for Principal action';
+    if (app.status === 'pending') {
+      const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+      return staffRole === 'staff' ? 'Waiting for Principal action' : 'Waiting for Director action';
+    }
     const actionText = app.status === 'approved' ? 'Approved' : 'Rejected';
-    const reviewerName = app.reviewer?.full_name || app.reviewer?.username || 'Principal';
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+    const fallbackReviewer = staffRole === 'staff' ? 'Principal' : 'Director';
+    const reviewerName = app.reviewer?.full_name || app.reviewer?.username || fallbackReviewer;
     const actionDate = app.reviewed_at ? format(new Date(app.reviewed_at), 'dd MMM yyyy') : '';
     return `${actionText} by ${reviewerName}${actionDate ? ` on ${actionDate}` : ''}`;
   };
@@ -185,7 +165,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View leave applications in read-only mode' : isDirectorReadOnly ? 'Review Principal leave applications and monitor handled requests' : 'Review, approve or reject staff leave applications'}
+            {isViewer ? 'View leave applications in read-only mode' : isMainAdmin ? 'Review, approve or reject Principal leave applications' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -255,12 +235,12 @@ export default function ViewLeave() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">
-              {isDirectorReadOnly ? 'Principal Leave Applications' : 'Leave Applications'}
+              {isMainAdmin ? 'Principal Leave Applications' : 'Leave Applications'}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
             </CardTitle>
-            <CardDescription>{canManageStaffLeaves ? 'Click Approve or Reject to act on a pending staff application' : isDirectorReadOnly ? 'Director view shows Principal leave applications.' : `${portalRoleLabel} read-only monitoring view.`}</CardDescription>
+            <CardDescription>{canManageLeaveApplications ? `Click Approve or Reject to act on a pending ${applicantRoleLabel} application` : `${portalRoleLabel} read-only monitoring view.`}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -287,7 +267,7 @@ export default function ViewLeave() {
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Handled By</th>
                       <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">File</th>
-                      {canManageStaffLeaves && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Principal Action</th>}
+                      {canManageLeaveApplications && <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">{actionRoleLabel} Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -337,7 +317,7 @@ export default function ViewLeave() {
                             <span className="text-xs text-muted-foreground">None</span>
                           )}
                         </td>
-                        {canManageStaffLeaves && (
+                        {canManageLeaveApplications && (
                           <td className="whitespace-nowrap px-4 py-3">
                             {app.status === 'pending' ? (
                               <div className="flex items-center gap-2">
@@ -345,6 +325,7 @@ export default function ViewLeave() {
                                   size="sm"
                                   className="h-8 bg-green-600 text-white hover:bg-green-700"
                                   onClick={() => openDialog(app, 'approve')}
+                                  disabled={processingAppId === app.id}
                                 >
                                   <CheckCircle className="mr-1 h-3.5 w-3.5" />
                                   Approve
@@ -354,6 +335,7 @@ export default function ViewLeave() {
                                   variant="destructive"
                                   className="h-8"
                                   onClick={() => openDialog(app, 'reject')}
+                                  disabled={processingAppId === app.id}
                                 >
                                   <XCircle className="mr-1 h-3.5 w-3.5" />
                                   Reject
@@ -377,11 +359,11 @@ export default function ViewLeave() {
       </div>
 
       {/* Approve / Reject Dialog */}
-      {canManageStaffLeaves && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {canManageLeaveApplications && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-playfair-display gradient-text">
-              {action === 'approve' ? 'Approve Leave Application' : 'Reject Leave Application'}
+              {action === 'approve' ? `Approve ${applicantRoleLabel} Leave Application` : `Reject ${applicantRoleLabel} Leave Application`}
             </DialogTitle>
             <DialogDescription>
               {selectedApp?.staff?.full_name} &mdash;{' '}
@@ -412,7 +394,7 @@ export default function ViewLeave() {
 
             <div className="space-y-1">
               <Label htmlFor="admin-response">
-                Principal Response <span className="text-muted-foreground">(optional)</span>
+                {actionRoleLabel} Response <span className="text-muted-foreground">(optional)</span>
               </Label>
               <Textarea
                 id="admin-response"
