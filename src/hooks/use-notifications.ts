@@ -88,7 +88,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   const markAsRead = async (notificationId: string) => {
     // Principal/Director request-inbox rows may be generated virtual rows.
     // Hide them locally so the bell popup/count can be cleared without changing the real request.
-    if (scope === 'principal' || scope === 'director') {
+    if (scope === 'principal' || scope === 'director' || scope === 'all') {
       const nextDismissed = [...readDismissedIds(userId, scope), notificationId];
       writeDismissedIds(userId, scope, nextDismissed);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
@@ -114,7 +114,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   };
 
   const markAllAsRead = async () => {
-    if (scope === 'principal' || scope === 'director') {
+    if (scope === 'principal' || scope === 'director' || scope === 'all') {
       const allIds = notifications.map(n => n.id);
       writeDismissedIds(userId, scope, [...readDismissedIds(userId, scope), ...allIds]);
       setNotifications([]);
