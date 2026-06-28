@@ -30,7 +30,7 @@ export default function EmployeeApproval() {
 
   useEffect(() => {
     fetchEmployees();
-  }, [isMainAdmin]);
+  }, [isMainAdmin, isViewer]);
 
   const fetchEmployees = async () => {
     try {
@@ -43,8 +43,11 @@ export default function EmployeeApproval() {
       if (isMainAdmin) {
         // Director verifies Principal registrations. Legacy role 'admin' is treated as Principal.
         query = query.in('role', ['principal', 'admin']);
+      } else if (isViewer) {
+        // Viewer gets Director-level visibility in read-only mode: staff + Principal records.
+        query = query.in('role', ['staff', 'principal', 'admin']);
       } else {
-        // Principal/Viewer see staff records here.
+        // Principal sees staff records here.
         query = query.eq('role', 'staff');
       }
 
@@ -105,8 +108,8 @@ export default function EmployeeApproval() {
 
       await supabase.from('notifications').insert({
         user_id: employeeId,
-        title: 'Account Approved',
-        message: `Congratulations ${employeeName}! Your account has been approved. You can now login and access the leave management system.`,
+        title: `${managedRoleLabel} Account Approved`,
+        message: `Congratulations ${employeeName}! Your ${managedRoleLabel.toLowerCase()} account has been approved by the ${isDirectorManagingPrincipals ? 'Director' : 'Principal'}. You can now login and access the leave management system.`,
         type: 'approval',
       });
 
@@ -150,8 +153,8 @@ export default function EmployeeApproval() {
 
       await supabase.from('notifications').insert({
         user_id: employeeId,
-        title: 'Account Rejected',
-        message: `Dear ${employeeName}, your account registration has been rejected. Please contact the administration office for more information.`,
+        title: `${managedRoleLabel} Account Rejected`,
+        message: `Dear ${employeeName}, your ${managedRoleLabel.toLowerCase()} account registration has been rejected by the ${isDirectorManagingPrincipals ? 'Director' : 'Principal'}. Please contact the ${isDirectorManagingPrincipals ? 'Director office' : 'Principal office'} for more information.`,
         type: 'rejection',
       });
 
@@ -313,7 +316,7 @@ export default function EmployeeApproval() {
                   <Users className="h-5 w-5" />
                   {isDirectorManagingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
-                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only staff records. No approval or modification actions available.'}</CardDescription>
+                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only staff and Principal records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
