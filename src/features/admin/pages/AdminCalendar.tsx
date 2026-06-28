@@ -18,8 +18,8 @@ import { format, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDa
 import { ChevronLeft, ChevronRight, CalendarDays, Users, Sun, Plus, Trash2, Loader2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
+import { downloadTablePdf } from '@/lib/pdf-report';
 
 interface LeavesOnDate {
   staffName: string;
@@ -224,6 +224,7 @@ export default function AdminCalendar() {
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!autofilter'] = { ref: 'A4:L4' };
     ws['!cols'] = [
       { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
       { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 48 },
@@ -234,63 +235,27 @@ export default function AdminCalendar() {
 
   const exportDirectorReportPDF = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
     const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 32;
-    let y = 36;
-
-    const drawHeader = () => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text('LeaveSync', margin, y);
-      doc.setFontSize(13);
-      doc.text(title, margin, y + 18);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 150, y + 18);
-      y += 40;
-      doc.setDrawColor(180);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 16;
-    };
-
-    const drawRow = (row: DirectorReportRow, index: number) => {
-      if (y > pageHeight - 95) {
-        doc.addPage();
-        y = 36;
-        drawHeader();
-      }
-      doc.setFillColor(index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 248 : 255);
-      doc.rect(margin, y - 10, pageWidth - margin * 2, 70, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text(`${index + 1}. ${row.name}`, margin + 8, y);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text(`Dept: ${row.department}`, margin + 8, y + 14);
-      doc.text(`Email: ${row.email}`, margin + 8, y + 28);
-      doc.text(`Phone: ${row.phone}`, margin + 8, y + 42);
-      doc.text(`Leave: ${row.leaveType}`, margin + 245, y);
-      doc.text(`Dates: ${row.startDate} to ${row.endDate}`, margin + 245, y + 14);
-      doc.text(`Duration: ${row.duration}`, margin + 245, y + 28);
-      doc.text(`Status: ${row.status}`, margin + 245, y + 42);
-      doc.text(`Handled By: ${row.handledBy}`, margin + 500, y);
-      doc.text(`Created: ${row.createdDate}`, margin + 500, y + 14);
-      const balanceLines = doc.splitTextToSize(`Balance: ${row.leaveBalance}`, pageWidth - margin - 500 - 10);
-      doc.text(balanceLines.slice(0, 3), margin + 500, y + 28);
-      y += 76;
-    };
-
-    drawHeader();
-    if (rows.length === 0) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      doc.text('No records found.', margin, y);
-    } else {
-      rows.forEach(drawRow);
-    }
-    doc.save(`${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    downloadTablePdf({
+      title,
+      subtitle: scope === 'staff' ? 'Staff records with leave activity' : 'Principal records with leave activity',
+      headers: ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
+      rows: rows.map((r) => [
+        r.name,
+        r.department,
+        r.email,
+        r.phone,
+        r.leaveType,
+        r.startDate,
+        r.endDate,
+        r.duration,
+        r.status,
+        r.handledBy,
+        r.createdDate,
+        r.leaveBalance,
+      ]),
+      filename: `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+      orientation: 'landscape',
+    });
   };
 
   const handleDirectorReportDownload = async (scope: DirectorReportScope, fileFormat: DirectorReportFormat) => {
