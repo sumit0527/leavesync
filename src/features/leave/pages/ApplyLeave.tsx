@@ -192,7 +192,7 @@ export default function ApplyLeave() {
         }
       });
 
-      toast.success('Leave application submitted successfully!');
+      toast.success(isPrincipal ? 'Leave application submitted to Director for approval!' : 'Leave application submitted to Principal for approval!');
       navigate('/staff/history');
     } catch (error) {
       console.error('Submit error:', error);
@@ -375,7 +375,7 @@ export default function ApplyLeave() {
             <p>• You cannot apply for leave on the same day</p>
             <p>• Leave cannot be applied on weekends or public holidays</p>
             <p>• Only working days are counted in your leave balance</p>
-            <p>• You will receive a notification once your application is reviewed</p>
+            <p>• You will receive a notification once your application is reviewed by the {isPrincipal ? 'Director' : 'Principal'}</p>
           </CardContent>
         </Card>
       </div>
