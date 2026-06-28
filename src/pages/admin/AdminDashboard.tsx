@@ -92,7 +92,27 @@ export default function AdminDashboard() {
     { label: 'Departments', to: '/admin/departments', icon: Building2, variant: 'secondary' as const },
   ];
 
-  const recentApplications = applications.slice(0, 4);
+  const recentApplications = applications
+    .filter((app) => {
+      const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
+
+      // Principal dashboard must show only staff-side leave work.
+      // Principal leave applications belong to Director and should not appear here.
+      if (isPrincipal && !isMainAdmin) return applicantRole === 'staff';
+
+      // Director dashboard can monitor both staff and Principal leaves, with a role label below.
+      if (isMainAdmin) return applicantRole === 'staff' || applicantRole === 'principal' || applicantRole === 'admin';
+
+      return true;
+    })
+    .slice(0, 4);
+
+  const getApplicantRoleLabel = (role?: string | null) => {
+    const normalized = String(role ?? '').toLowerCase();
+    if (normalized === 'staff') return 'Staff';
+    if (normalized === 'principal' || normalized === 'admin') return 'Principal';
+    return 'User';
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -170,11 +190,11 @@ export default function AdminDashboard() {
           <Card className={compactCardClass}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
               <div>
-                <CardTitle className="font-playfair-display text-lg">Recent Applications</CardTitle>
-                <CardDescription className="text-xs">Latest leave requests and updates</CardDescription>
+                <CardTitle className="font-playfair-display text-lg">{isMainAdmin ? 'Recent Staff & Principal Applications' : 'Recent Staff Applications'}</CardTitle>
+                <CardDescription className="text-xs">{isMainAdmin ? 'Latest staff and Principal leave requests are clearly labelled below' : 'Latest staff leave requests and updates'}</CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
-                <Link to="/admin/applications">Review All</Link>
+                <Link to="/admin/view-leave">Review All</Link>
               </Button>
             </CardHeader>
             <CardContent className="p-4 pt-1">
@@ -187,7 +207,14 @@ export default function AdminDashboard() {
                   {recentApplications.map((app) => (
                     <div key={app.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border/80 p-2.5">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{app.staff?.full_name || 'Staff'}</p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-medium">{app.staff?.full_name || 'Staff'}</p>
+                          {isMainAdmin && (
+                            <Badge variant="outline" className="shrink-0 text-[10px]">
+                              {getApplicantRoleLabel((app.staff as any)?.role)}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd')}
                         </p>
