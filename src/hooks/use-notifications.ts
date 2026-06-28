@@ -4,6 +4,26 @@ import type { Notification } from '@/types';
 
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
 
+function getDismissedKey(userId: string | undefined, scope: NotificationScope) {
+  return `leavesync-dismissed-notifications:${userId ?? 'guest'}:${scope}`;
+}
+
+function readDismissedIds(userId: string | undefined, scope: NotificationScope): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(getDismissedKey(userId, scope));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDismissedIds(userId: string | undefined, scope: NotificationScope, ids: string[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getDismissedKey(userId, scope), JSON.stringify(Array.from(new Set(ids)).slice(-300)));
+}
+
 export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -25,8 +45,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
       // Management roles use a clean request-inbox RPC.
       // It returns ONLY real currently-pending requests:
       // Principal => pending staff registrations + pending staff leaves
-      // Director => pending Principal registrations + pending Principal leaves
-      // This avoids old/backfilled approved notification duplicates.
+      // Director => pending Principal registrations + pending Principal leaves.
       if (scope === 'principal' || scope === 'director' || scope === 'all') {
         const { data, error } = await supabase.rpc('get_management_notifications', {
           p_scope: scope,
@@ -34,6 +53,11 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
 
         if (error) throw error;
         rows = (data ?? []) as Notification[];
+
+        // Request-inbox items are generated from current pending data, not always stored rows.
+        // Mark as Read hides them from this user's popup/inbox until the request changes.
+        const dismissed = new Set(readDismissedIds(userId, scope));
+        rows = rows.filter((row) => !dismissed.has(row.id));
       } else {
         const { data, error } = await supabase
           .from('notifications')
@@ -62,9 +86,15 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   }, [fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
-    // Principal/Director notifications are request-inbox items generated from current pending data.
-    // They disappear only after approval/rejection, not by mark-as-read.
-    if (scope === 'principal' || scope === 'director') return;
+    // Principal/Director request-inbox rows may be generated virtual rows.
+    // Hide them locally so the bell popup/count can be cleared without changing the real request.
+    if (scope === 'principal' || scope === 'director') {
+      const nextDismissed = [...readDismissedIds(userId, scope), notificationId];
+      writeDismissedIds(userId, scope, nextDismissed);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -84,7 +114,15 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   };
 
   const markAllAsRead = async () => {
-    if (!userId || scope === 'principal' || scope === 'director') return;
+    if (scope === 'principal' || scope === 'director') {
+      const allIds = notifications.map(n => n.id);
+      writeDismissedIds(userId, scope, [...readDismissedIds(userId, scope), ...allIds]);
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    if (!userId) return;
 
     try {
       const { error } = await supabase
