@@ -18,6 +18,7 @@ import {
 import { format } from 'date-fns';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DepartmentStats {
   department: string;
@@ -74,6 +75,7 @@ const renderCustomLegend = (props: any) => {
 };
 
 export default function Analytics() {
+  const { isMainAdmin, isPrincipal, portalRoleLabel } = useAuth();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -100,25 +102,33 @@ export default function Analytics() {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
 
-      // Fetch all apps for the selected year
+      // Fetch leave apps with applicant role so every role dashboard can show the correct scope.
       const { data: allData } = await supabase
         .from('leave_applications')
-        .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(department:departments(name))')
+        .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, department:departments(name))')
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd);
 
       if (allData) {
-        // Overall stats
+        const allRows = Array.isArray(allData) ? allData : [];
+        const staffRows = allRows.filter((a: any) => String(a.staff?.role ?? '').toLowerCase() === 'staff');
+        const principalRows = allRows.filter((a: any) => ['principal', 'admin'].includes(String(a.staff?.role ?? '').toLowerCase()));
+
+        // Principal analytics = staff-only analysis.
+        // Director summary/status/leave-type analytics = Principal-only analysis.
+        // Director department-wise section = staff-only analysis because Principals do not belong to departments.
+        const summaryRows = isMainAdmin ? principalRows : staffRows;
+        const departmentRowsSource = staffRows;
+
         setStats({
-          total: allData.length,
-          approved: allData.filter((a: any) => a.status === 'approved').length,
-          rejected: allData.filter((a: any) => a.status === 'rejected').length,
-          pending: allData.filter((a: any) => a.status === 'pending').length,
+          total: summaryRows.length,
+          approved: summaryRows.filter((a: any) => a.status === 'approved').length,
+          rejected: summaryRows.filter((a: any) => a.status === 'rejected').length,
+          pending: summaryRows.filter((a: any) => a.status === 'pending').length,
         });
 
-        // Department breakdown
         const deptMap = new Map<string, DepartmentStats>();
-        allData.forEach((app: any) => {
+        departmentRowsSource.forEach((app: any) => {
           const deptName = app.staff?.department?.name || 'No Department';
           if (!deptMap.has(deptName)) {
             deptMap.set(deptName, { department: deptName, total: 0, approved: 0, rejected: 0, pending: 0 });
@@ -131,13 +141,12 @@ export default function Analytics() {
         });
         setDepartmentStats(Array.from(deptMap.values()));
 
-        // Leave type breakdown
         const typeMap = new Map<string, number>();
-        allData.forEach((app: any) => {
+        summaryRows.forEach((app: any) => {
           const typeName = app.leave_type?.name || 'Unknown';
           typeMap.set(typeName, (typeMap.get(typeName) || 0) + 1);
         });
-        const total = allData.length;
+        const total = summaryRows.length;
         setLeaveTypeStats(
           Array.from(typeMap.entries()).map(([leave_type, count]) => ({
             leave_type,
@@ -207,7 +216,7 @@ export default function Analytics() {
     const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
     downloadTablePdf({
       title: `Analytics Report ${selectedYear}`,
-      subtitle: 'Summary + Department-wise + Leave Type Usage',
+      subtitle: isMainAdmin ? 'Principal summary + Staff department-wise + Principal leave type usage' : 'Staff summary + Staff department-wise + Staff leave type usage',
       headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
       rows: [
         ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
@@ -228,7 +237,7 @@ export default function Analytics() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Analytics Dashboard</h1>
-            <p className="mt-2 text-muted-foreground">Comprehensive leave statistics and insights</p>
+            <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'Principal leave summary with staff department tracking' : isPrincipal ? 'Staff leave statistics and insights' : 'Comprehensive leave statistics and insights'}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Year selector */}
@@ -297,7 +306,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Application Status</CardTitle>
-              <CardDescription>Distribution by status — {selectedYear}</CardDescription>
+              <CardDescription>{isMainAdmin ? 'Principal applications only' : 'Staff applications only'} — {selectedYear}</CardDescription>
             </CardHeader>
             <CardContent>
               {stats.total === 0 ? (
@@ -332,7 +341,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Leave Type Distribution</CardTitle>
-              <CardDescription>Applications by leave category</CardDescription>
+              <CardDescription>{isMainAdmin ? 'Principal leave categories only' : 'Staff leave categories only'}</CardDescription>
             </CardHeader>
             <CardContent>
               {leaveTypePieData.length === 0 ? (
@@ -359,7 +368,7 @@ export default function Analytics() {
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Quick Summary</CardTitle>
-              <CardDescription>{selectedYear} at a glance</CardDescription>
+              <CardDescription>{isMainAdmin ? 'Principal statistics only' : 'Staff statistics only'} — {selectedYear}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-2">
               {[
@@ -383,7 +392,7 @@ export default function Analytics() {
         {/* Department Bar — full width */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-playfair-display">Department-wise Applications</CardTitle>
+            <CardTitle className="font-playfair-display">Department-wise Staff Applications</CardTitle>
             <div className="flex flex-wrap gap-4 pt-1">
               {[
                 { label: 'Approved', color: CHART_COLORS.emerald },
@@ -435,7 +444,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">Department Statistics</CardTitle>
-            <CardDescription>Detailed breakdown by department — {selectedYear}</CardDescription>
+            <CardDescription>Staff-only breakdown by department — {selectedYear}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="w-full max-w-full overflow-x-auto">
