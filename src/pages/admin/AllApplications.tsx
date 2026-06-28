@@ -32,6 +32,7 @@ const formatLeaveDuration = (app: any) => {
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
   const { isMainAdmin, isPrincipal, isViewer } = useAuth();
+  const isDirectorView = isMainAdmin || isViewer;
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
   const currentYear = new Date().getFullYear();
@@ -47,7 +48,7 @@ export default function AllApplications() {
   const visibleApplications = applications.filter(app => {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
-    if (isMainAdmin) {
+    if (isDirectorView) {
       // Director's All Applications section shows Principal leave applications only.
       return staffRole === 'principal' || staffRole === 'admin';
     }
@@ -133,7 +134,7 @@ export default function AllApplications() {
   const exportToPDF = () => {
     const rows = getReportRows();
     downloadTablePdf({
-      title: isMainAdmin ? 'Principal Leave Applications Report' : 'All Leave Applications Report',
+      title: isDirectorView ? 'Principal Leave Applications Report' : 'All Leave Applications Report',
       subtitle: `Filter: ${getFilterLabel()}`,
       headers: ['#', 'Applicant', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
       rows: rows.map((row) => [
@@ -158,8 +159,8 @@ export default function AllApplications() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isMainAdmin ? 'Principal Applications' : 'All Applications'}</h1>
-            <p className="mt-2 text-muted-foreground">{isMainAdmin ? 'View Principal leave applications' : isPrincipal && !isViewer ? 'View staff leave applications' : 'View leave applications'}</p>
+            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isDirectorView ? 'Principal Applications' : 'All Applications'}</h1>
+            <p className="mt-2 text-muted-foreground">{isDirectorView ? 'View Principal leave applications' : isPrincipal && !isViewer ? 'View staff leave applications' : 'View leave applications'}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Select value={filterYear} onValueChange={setFilterYear}>
