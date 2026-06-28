@@ -18,9 +18,9 @@ import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
 import { Badge } from '@/components/ui/badge';
 import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
+import { downloadTablePdf } from '@/lib/pdf-report';
 
 
 
@@ -123,65 +123,28 @@ export default function Profile() {
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const margin = 40;
-    let y = 45;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text(`LeaveSync - ${isPrincipal ? 'Principal' : 'Staff'} Profile Report`, margin, y);
-    y += 24;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, y);
-    y += 28;
-
     const infoRows = [
-      ['Full Name', profile?.full_name || '-'],
-      ['Username', profile?.username || '-'],
-      ['Email', profile?.email || '-'],
-      ['Phone', profile?.phone || '-'],
-      ['Address', profile?.address || '-'],
-      ['Role', isPrincipal ? 'Principal' : 'Staff Member'],
+      ['Profile', 'Full Name', profile?.full_name || '-', '', ''],
+      ['Profile', 'Username', profile?.username || '-', '', ''],
+      ['Profile', 'Email', profile?.email || '-', '', ''],
+      ['Profile', 'Phone', profile?.phone || '-', '', ''],
+      ['Profile', 'Address', profile?.address || '-', '', ''],
+      ['Profile', 'Role', isPrincipal ? 'Principal' : 'Staff Member', '', ''],
+      ['Application Summary', 'Total', stats.total, '', ''],
+      ['Application Summary', 'Approved', stats.approved, '', ''],
+      ['Application Summary', 'Pending', stats.pending, '', ''],
+      ['Application Summary', 'Rejected', stats.rejected, '', ''],
+      ['Leave Allocation', 'Leave Type', 'Total', 'Used', 'Remaining'],
+      ...allocations.map((a) => ['Leave Allocation', a.leave_type?.name || 'N/A', a.total_allocated, a.used, a.remaining]),
     ];
-    doc.setFont('helvetica', 'bold');
-    doc.text('Profile Details', margin, y);
-    y += 16;
-    doc.setFont('helvetica', 'normal');
-    infoRows.forEach(([label, value]) => { doc.text(`${label}:`, margin, y); doc.text(String(value), margin + 110, y); y += 16; });
-    y += 12;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Application Summary', margin, y);
-    y += 16;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Total: ${stats.total}   Approved: ${stats.approved}   Pending: ${stats.pending}   Rejected: ${stats.rejected}`, margin, y);
-    y += 28;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Leave Allocations', margin, y);
-    y += 18;
-    doc.setFontSize(9);
-    doc.setFillColor(44, 31, 8);
-    doc.setTextColor(255,255,255);
-    doc.rect(margin, y - 12, 500, 18, 'F');
-    doc.text('Leave Type', margin + 6, y);
-    doc.text('Total', margin + 250, y);
-    doc.text('Used', margin + 320, y);
-    doc.text('Remaining', margin + 390, y);
-    y += 18;
-    doc.setTextColor(0,0,0);
-    doc.setFont('helvetica', 'normal');
-    allocations.forEach((a, idx) => {
-      doc.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 248 : 255);
-      doc.rect(margin, y - 12, 500, 18, 'F');
-      doc.text(a.leave_type?.name || 'N/A', margin + 6, y);
-      doc.text(String(a.total_allocated), margin + 250, y);
-      doc.text(String(a.used), margin + 320, y);
-      doc.text(String(a.remaining), margin + 390, y);
-      y += 18;
+    downloadTablePdf({
+      title: `${isPrincipal ? 'Principal' : 'Staff'} Profile Report`,
+      subtitle: profile?.full_name || '',
+      headers: ['Section', 'Field / Leave Type', 'Value / Total', 'Used', 'Remaining'],
+      rows: infoRows,
+      filename: `profile_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+      orientation: 'portrait',
     });
-    if (allocations.length === 0) doc.text('No leave allocations found.', margin, y);
-    doc.save(`profile_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const exportToExcel = downloadFullReport;
