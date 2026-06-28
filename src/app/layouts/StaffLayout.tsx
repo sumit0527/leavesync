@@ -13,7 +13,8 @@ import {
   Bell, 
   User, 
   Menu, 
-  LogOut 
+  LogOut,
+  Home 
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -136,6 +137,12 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
 
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-8">
+          <Button variant="outline" size="sm" className="mr-2 h-9 gap-1.5 px-2 text-xs shrink-0" asChild>
+            <Link to="/" title="Back to Home Page">
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Home</span>
+            </Link>
+          </Button>
           <div className="flex items-center gap-4 md:hidden">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
