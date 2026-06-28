@@ -260,7 +260,7 @@ export default function ApplyLeave() {
         }
       }).catch((err: unknown) => console.error('Email notification failed:', err));
 
-      toast.success('Leave application submitted successfully!');
+      toast.success(isPrincipal ? 'Leave application submitted to Director for approval!' : 'Leave application submitted to Principal for approval!');
       navigate('/staff/leave-history');
     } catch (error) {
       console.error('Submit error:', error);
@@ -435,7 +435,7 @@ export default function ApplyLeave() {
             <p>• Leave cannot be applied on weekends or public holidays</p>
             <p>• Full day counts as 1 day and half day counts as 0.5 day</p>
             <p>• Only working days are counted in your leave balance</p>
-            <p>• You will receive a notification once your application is reviewed</p>
+            <p>• You will receive a notification once your application is reviewed by the {isPrincipal ? 'Director' : 'Principal'}</p>
           </CardContent>
         </Card>
       </div>
