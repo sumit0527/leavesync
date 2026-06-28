@@ -7,30 +7,44 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Bell, CheckCheck } from 'lucide-react';
 
+function isPrincipalManagementNotification(notification: any) {
+  const text = `${notification.title ?? ''} ${notification.message ?? ''} ${notification.type ?? ''}`.toLowerCase();
+  return (
+    text.includes('staff registration pending') ||
+    text.includes('staff leave request pending') ||
+    text.includes('staff_registration_pending') ||
+    text.includes('staff_leave_pending') ||
+    text.includes('review required') ||
+    text.includes('request inbox')
+  );
+}
+
 export default function Notifications() {
   const { profile, isPrincipal } = useAuth();
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(profile?.id);
 
   const visibleNotifications = isPrincipal
-    ? notifications.filter((notification) => {
-        const text = `${notification.title} ${notification.message} ${notification.type}`.toLowerCase();
-        // Principal self-leave portal should show only their own account/leave updates,
-        // not management/request notifications such as Director or Principal registration alerts.
-        if (text.includes('director registration') || text.includes('principal registration') || text.includes('review required') || text.includes('request inbox')) return false;
-        return text.includes('leave') || text.includes('account approved') || text.includes('account rejected') || text.includes('password');
-      })
+    ? notifications.filter((notification) => !isPrincipalManagementNotification(notification))
     : notifications;
+
+  const markVisibleAsRead = async () => {
+    if (!isPrincipal) {
+      await markAllAsRead();
+      return;
+    }
+    await Promise.all(visibleNotifications.filter(n => !n.is_read).map(n => markAsRead(n.id)));
+  };
 
   return (
     <StaffLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isPrincipal ? 'Principal Leave Notifications' : 'Notifications'}</h1>
             <p className="mt-2 text-muted-foreground">{isPrincipal ? 'Only your own Principal leave/account updates appear here' : 'Stay updated on your leave applications'}</p>
           </div>
           {visibleNotifications.some(n => !n.is_read) && (
-            <Button onClick={markAllAsRead} variant="secondary">
+            <Button onClick={markVisibleAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
             </Button>
@@ -55,20 +69,24 @@ export default function Notifications() {
             {visibleNotifications.map((notification) => (
               <Card
                 key={notification.id}
-                className={`cursor-pointer transition-all ${!notification.is_read ? 'border-primary' : ''}`}
-                onClick={() => !notification.is_read && markAsRead(notification.id)}
+                className={`transition-all ${!notification.is_read ? 'border-primary' : ''}`}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <CardTitle className="text-base">{notification.title}</CardTitle>
                     {!notification.is_read && <Badge variant="default">New</Badge>}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">{notification.message}</p>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
                   </p>
+                  {!notification.is_read && (
+                    <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
+                      Mark as Read
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
