@@ -27,7 +27,9 @@ export default function AdminNotifications() {
   const description = isPrincipal
     ? 'Only pending staff registrations and pending staff leave requests are shown here. Once handled, they disappear from this inbox.'
     : (isMainAdmin || isViewer)
-      ? 'Director-level request view: pending Principal registrations, pending Principal leave requests, pending staff registrations, and pending staff leave requests are visible here. Viewer can only view/clear local popup items.'
+      ? isViewer
+        ? 'Read-only notification view. You can view Director-level pending Principal and staff requests, but cannot mark, approve, reject, or change anything.'
+        : 'Director-level request view: pending Principal registrations, pending Principal leave requests, pending staff registrations, and pending staff leave requests are visible here.'
       : 'Read-only notification records.';
 
   return (
@@ -38,7 +40,7 @@ export default function AdminNotifications() {
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
             <p className="mt-2 text-muted-foreground">{description}</p>
           </div>
-          {notifications.some(n => !n.is_read) && (
+          {!isViewer && notifications.some(n => !n.is_read) && (
             <Button onClick={markAllAsRead} variant="secondary">
               <CheckCheck className="mr-2 h-4 w-4" />
               Mark All as Read
@@ -93,10 +95,12 @@ export default function AdminNotifications() {
                   <p className="text-sm text-muted-foreground">{notification.message}</p>
                   {isRequestInbox && (
                     <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                      Review this request from the correct section. Staff requests are handled by Principal. Principal requests are handled by Director.
+                      {isViewer
+                        ? 'Read-only view: you can view this request, but cannot take action or clear it from here.'
+                        : 'Review this request from the correct section. Staff requests are handled by Principal. Principal requests are handled by Director.'}
                     </p>
                   )}
-                  {!notification.is_read && (
+                  {!isViewer && !notification.is_read && (
                     <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
                       Mark as Read
                     </Button>
