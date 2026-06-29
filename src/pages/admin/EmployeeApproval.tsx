@@ -22,9 +22,10 @@ export default function EmployeeApproval() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
+  const isViewingPrincipals = isMainAdmin || isViewer;
   const isDirectorManagingPrincipals = isMainAdmin;
-  const managedRoleLabel = isDirectorManagingPrincipals ? 'Principal' : 'Staff';
-  const managedRoleLabelPlural = isDirectorManagingPrincipals ? 'Principals' : 'Employees';
+  const managedRoleLabel = isViewingPrincipals ? 'Principal' : 'Staff';
+  const managedRoleLabelPlural = isViewingPrincipals ? 'Principals' : 'Employees';
   const canApproveAccounts = (isPrincipal || isMainAdmin) && !isViewer;
   const canMovePastEmployees = isMainAdmin && !isViewer;
 
@@ -44,8 +45,8 @@ export default function EmployeeApproval() {
         // Director verifies Principal registrations. Legacy role 'admin' is treated as Principal.
         query = query.in('role', ['principal', 'admin']);
       } else if (isViewer) {
-        // Viewer gets Director-level visibility in read-only mode: staff + Principal records.
-        query = query.in('role', ['staff', 'principal', 'admin']);
+        // Viewer Employee Management should show Principal information only in read-only mode.
+        query = query.in('role', ['principal', 'admin']);
       } else {
         // Principal sees staff records here.
         query = query.eq('role', 'staff');
@@ -239,7 +240,7 @@ export default function EmployeeApproval() {
   };
 
   const getStatusBadge = (status: string, employmentStatus?: string) => {
-    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{isDirectorManagingPrincipals ? 'Past Principal' : 'Past Employee'}</Badge>;
+    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{isViewingPrincipals ? 'Past Principal' : 'Past Employee'}</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600">Approved</Badge>;
@@ -267,14 +268,14 @@ export default function EmployeeApproval() {
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isDirectorManagingPrincipals ? 'Principal Management' : 'Employee Management'}</h1>
-          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view staff records. Principal handles staff approval actions.`}</p>
+          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isViewingPrincipals ? 'Principal Information' : 'Employee Management'}</h1>
+          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : isViewer ? `${portalRoleLabel} can view Principal information and download records. Approval and modification actions are hidden.` : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view records only.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Current Principals' : 'Current Employees'}</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isViewingPrincipals ? 'Current Principals' : 'Current Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold sm:text-2xl">{currentEmployees.length}</div>
@@ -300,7 +301,7 @@ export default function EmployeeApproval() {
           </Card>
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Past Principals' : 'Past Employees'}</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isViewingPrincipals ? 'Past Principals' : 'Past Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold text-slate-600 sm:text-2xl">{pastEmployees.length}</div>
@@ -314,16 +315,16 @@ export default function EmployeeApproval() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  {isDirectorManagingPrincipals ? 'Principals' : 'Employees'}
+                  {isViewingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
-                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only staff and Principal records. No approval or modification actions available.'}</CardDescription>
+                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : isViewer ? 'Read-only Principal information. No approval or modification actions available.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
-                  {isDirectorManagingPrincipals ? 'Current Principals' : 'Current Employees'}
+                  {isViewingPrincipals ? 'Current Principals' : 'Current Employees'}
                 </Button>
                 <Button size="sm" variant={activeTab === 'past' ? 'default' : 'ghost'} onClick={() => setActiveTab('past')}>
-                  {isDirectorManagingPrincipals ? 'Past Principals' : 'Past Employees'}
+                  {isViewingPrincipals ? 'Past Principals' : 'Past Employees'}
                 </Button>
               </div>
             </div>
@@ -343,7 +344,7 @@ export default function EmployeeApproval() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 whitespace-nowrap">Name</th>
-                      {!isDirectorManagingPrincipals && <th className="text-left p-3 whitespace-nowrap">Department</th>}
+                      {!isViewingPrincipals && <th className="text-left p-3 whitespace-nowrap">Department</th>}
                       <th className="text-left p-3 whitespace-nowrap">Email</th>
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
@@ -361,7 +362,7 @@ export default function EmployeeApproval() {
                             <p className="text-xs text-muted-foreground">@{employee.username}</p>
                           </div>
                         </td>
-                        {!isDirectorManagingPrincipals && (
+                        {!isViewingPrincipals && (
                           <td className="p-3 whitespace-nowrap">{employee.department?.name || 'No department selected'}</td>
                         )}
                         <td className="p-3 whitespace-nowrap">{employee.email || '-'}</td>
