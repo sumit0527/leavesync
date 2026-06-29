@@ -46,6 +46,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { profile, signOut, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const notificationScope = isViewer ? 'all' : isPrincipal ? 'principal' : isMainAdmin ? 'director' : 'own';
   const { unreadCount } = useNotifications(profile?.id, notificationScope);
+  const visibleUnreadCount = isViewer ? 0 : unreadCount;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const portalTitle = `${portalRoleLabel} Portal`;
@@ -89,7 +90,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
-          const showBadge = item.name === 'Notifications' && unreadCount > 0;
+          const showBadge = item.name === 'Notifications' && visibleUnreadCount > 0;
 
           return (
             <Link
@@ -108,7 +109,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </div>
               {showBadge && (
                 <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
-                  {unreadCount}
+                  {visibleUnreadCount}
                 </Badge>
               )}
             </Link>
@@ -178,12 +179,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             {isViewer && (
               <Badge variant="outline" className="hidden sm:inline-flex border-primary/50 text-primary">Read Only</Badge>
             )}
-            {unreadCount > 0 && (
+            {visibleUnreadCount > 0 && (
               <Link to="/admin/notifications">
                 <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-sidebar-accent">
                   <Bell className="h-5 w-5" />
                   <Badge variant="destructive" className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-xs">
-                    {unreadCount}
+                    {visibleUnreadCount}
                   </Badge>
                 </Button>
               </Link>
