@@ -18,7 +18,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
-  Home
+  
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -135,12 +135,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       <div className="flex flex-1 flex-col min-w-0">
         <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-6">
-          <Button variant="outline" size="sm" className="mr-2 h-9 gap-1.5 px-2 text-xs shrink-0" asChild>
-            <Link to="/" title="Back to Home Page">
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Home</span>
-            </Link>
-          </Button>
           <div className="flex items-center gap-3 md:hidden min-w-0">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
