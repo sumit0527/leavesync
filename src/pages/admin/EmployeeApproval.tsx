@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, Users, UserX, RotateCcw } from 'lucide-react';
 import type { Profile } from '@/types';
+import { sendRegistrationDecisionEmail } from '@/lib/email-notifications';
 
 type EmployeeRecord = Profile & {
   employment_status?: 'active' | 'past';
@@ -114,17 +115,11 @@ export default function EmployeeApproval() {
         type: 'approval',
       });
 
-      const employee = employees.find(e => e.id === employeeId);
-      if (employee?.email) {
-        supabase.functions.invoke('send-account-notification', {
-          body: {
-            staffName: employeeName,
-            staffEmail: employee.email,
-            username: employee.username,
-            status: 'approved',
-          },
-        }).catch((err: unknown) => console.error('Email notification failed:', err));
-      }
+      sendRegistrationDecisionEmail({
+        applicantProfileId: employeeId,
+        status: 'approved',
+        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal',
+      }).catch((emailError) => console.error('Approval email notification failed:', emailError));
 
       toast.success(`${managedRoleLabel} approved successfully`);
       fetchEmployees();
@@ -159,17 +154,11 @@ export default function EmployeeApproval() {
         type: 'rejection',
       });
 
-      const employee = employees.find(e => e.id === employeeId);
-      if (employee?.email) {
-        supabase.functions.invoke('send-account-notification', {
-          body: {
-            staffName: employeeName,
-            staffEmail: employee.email,
-            username: employee.username,
-            status: 'rejected',
-          },
-        }).catch((err: unknown) => console.error('Email notification failed:', err));
-      }
+      sendRegistrationDecisionEmail({
+        applicantProfileId: employeeId,
+        status: 'rejected',
+        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal',
+      }).catch((emailError) => console.error('Rejection email notification failed:', emailError));
 
       toast.success(`${managedRoleLabel} rejected`);
       fetchEmployees();
