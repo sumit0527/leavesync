@@ -38,12 +38,33 @@ export default function PendingApplications() {
   const isDirectorView = isMainAdmin || isViewer;
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
   const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
-  const applicantRoleLabel = isDirectorView ? 'Principal' : 'staff';
+  const applicantRoleLabel = isDirectorView ? 'Principal / escalated staff' : 'staff';
+
+  const isEscalatedStaffLeave = (app: LeaveApplication) => {
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+    if (app.status !== 'pending' || staffRole !== 'staff' || !app.created_at) return false;
+    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
+  };
+
+  const getApplicantRoleLabel = (app?: LeaveApplication | null) => {
+    const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
+    if (staffRole === 'staff') return isEscalatedStaffLeave(app as LeaveApplication) ? 'escalated staff' : 'staff';
+    if (staffRole === 'principal' || staffRole === 'admin') return 'Principal';
+    return 'applicant';
+  };
+
+  const canActOnApplication = (app: LeaveApplication) => {
+    if (!canManageLeaveApplications || app.status !== 'pending') return false;
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+    if (isPrincipal && !isDirectorView) return staffRole === 'staff';
+    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
+    return false;
+  };
 
   const pendingApplications = applications
     .filter(app => {
       const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-      if (isDirectorView) return staffRole === 'principal' || staffRole === 'admin';
+      if (isDirectorView) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
       if (isPrincipal && !isViewer) return staffRole === 'staff';
       return false;
     })
@@ -62,6 +83,7 @@ export default function PendingApplications() {
     });
 
   const handleAction = (app: LeaveApplication, actionType: 'approve' | 'reject') => {
+    if (!canActOnApplication(app)) return;
     setSelectedApp(app);
     setAction(actionType);
     setResponse('');
@@ -294,7 +316,7 @@ export default function PendingApplications() {
           <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
             <DialogHeader>
               <DialogTitle className="font-playfair-display">
-                {action === 'approve' ? 'Approve' : 'Reject'} {applicantRoleLabel} Leave Application
+                {action === 'approve' ? 'Approve' : 'Reject'} {getApplicantRoleLabel(selectedApp)} Leave Application
               </DialogTitle>
               <DialogDescription>
                 Provide a response for {selectedApp?.staff?.full_name}
