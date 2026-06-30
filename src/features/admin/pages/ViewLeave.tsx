@@ -40,7 +40,28 @@ export default function ViewLeave() {
   const isDirectorView = isMainAdmin || isViewer;
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
   const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
-  const applicantRoleLabel = isDirectorView ? 'Principal' : 'staff';
+  const applicantRoleLabel = isDirectorView ? 'Principal / escalated staff' : 'staff';
+
+  const isEscalatedStaffLeave = (app: LeaveApplication) => {
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+    if (app.status !== 'pending' || staffRole !== 'staff' || !app.created_at) return false;
+    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
+  };
+
+  const getApplicantRoleLabel = (app?: LeaveApplication | null) => {
+    const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
+    if (staffRole === 'staff') return isEscalatedStaffLeave(app as LeaveApplication) ? 'escalated staff' : 'staff';
+    if (staffRole === 'principal' || staffRole === 'admin') return 'Principal';
+    return 'applicant';
+  };
+
+  const canActOnApplication = (app: LeaveApplication) => {
+    if (!canManageLeaveApplications || app.status !== 'pending') return false;
+    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
+    if (isPrincipal && !isDirectorView) return staffRole === 'staff';
+    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
+    return false;
+  };
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
 
@@ -60,8 +81,8 @@ export default function ViewLeave() {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
     if (isDirectorView) {
-      // Director's All/View Leave section is for Principal leave applications only.
-      return staffRole === 'principal' || staffRole === 'admin';
+      // Director sees Principal leaves plus staff leave requests escalated after 24 hours without Principal action.
+      return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
     }
 
     if (isPrincipal && !isViewer) {
@@ -81,7 +102,7 @@ export default function ViewLeave() {
   });
 
   const openDialog = (app: LeaveApplication, act: 'approve' | 'reject') => {
-    if (app.status !== 'pending' || processingAppId === app.id) return;
+    if (!canActOnApplication(app) || processingAppId === app.id) return;
     setSelectedApp(app);
     setAction(act);
     setResponse('');
@@ -127,7 +148,8 @@ export default function ViewLeave() {
   const formatReviewSummary = (app: LeaveApplication) => {
     if (app.status === 'pending') {
       const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-      return staffRole === 'staff' ? 'Waiting for Principal action' : 'Waiting for Director action';
+      if (staffRole === 'staff') return isEscalatedStaffLeave(app) ? 'Escalated to Director after 24 hours' : 'Waiting for Principal action';
+      return 'Waiting for Director action';
     }
     const actionText = app.status === 'approved' ? 'Approved' : 'Rejected';
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
@@ -166,7 +188,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View Director-level leave applications in read-only mode' : isDirectorView ? 'Review, approve or reject Principal leave applications' : 'Review, approve or reject staff leave applications'}
+            {isViewer ? 'View Director-level leave applications in read-only mode' : isDirectorView ? 'Review Principal leaves and staff leaves escalated after 24 hours' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -236,7 +258,7 @@ export default function ViewLeave() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">
-              {isDirectorView ? 'Principal Leave Applications' : 'Leave Applications'}
+              {isDirectorView ? 'Principal & Escalated Staff Leave Applications' : 'Leave Applications'}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
@@ -320,7 +342,7 @@ export default function ViewLeave() {
                         </td>
                         {canManageLeaveApplications && (
                           <td className="whitespace-nowrap px-4 py-3">
-                            {app.status === 'pending' ? (
+                            {canActOnApplication(app) ? (
                               <div className="flex items-center gap-2">
                                 <Button
                                   size="sm"
@@ -364,7 +386,7 @@ export default function ViewLeave() {
         <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-playfair-display gradient-text">
-              {action === 'approve' ? `Approve ${applicantRoleLabel} Leave Application` : `Reject ${applicantRoleLabel} Leave Application`}
+              {action === 'approve' ? `Approve ${getApplicantRoleLabel(selectedApp)} Leave Application` : `Reject ${getApplicantRoleLabel(selectedApp)} Leave Application`}
             </DialogTitle>
             <DialogDescription>
               {selectedApp?.staff?.full_name} &mdash;{' '}
