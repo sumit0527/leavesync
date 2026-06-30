@@ -14,11 +14,18 @@ const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover
 
 export default function AdminDashboard() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
+  const dashboardRoleTitle = isPrincipal && !isViewer ? 'Principal / UH' : portalRoleLabel;
   const { applications, loading } = useLeaveApplications();
   const isDirectorView = isMainAdmin || isViewer;
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
   const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; role?: string; department?: { name: string } }[]>([]);
+
+  const isEscalatedStaffLeave = (app: any) => {
+    const applicantRole = String(app?.staff?.role ?? '').toLowerCase();
+    if (app?.status !== 'pending' || applicantRole !== 'staff' || !app?.created_at) return false;
+    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
+  };
 
   const fetchCounts = useCallback(async () => {
     const { count: empCount } = await supabase
@@ -80,7 +87,7 @@ export default function AdminDashboard() {
   const dashboardScopeApplications = applications.filter((app) => {
     const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return applicantRole === 'staff';
-    if (isDirectorView) return applicantRole === 'principal' || applicantRole === 'admin';
+    if (isDirectorView) return applicantRole === 'principal' || applicantRole === 'admin' || isEscalatedStaffLeave(app);
     return applicantRole === 'staff';
   });
 
@@ -92,10 +99,10 @@ export default function AdminDashboard() {
   };
 
   const dashboardCards = [
-    { title: 'Pending Leaves', value: scopedStats.pending, note: isDirectorView ? 'Principal leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
+    { title: 'Pending Leaves', value: scopedStats.pending, note: isDirectorView ? 'Principal + escalated staff leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
     { title: 'Total Employees', value: employeeCount, note: 'Active staff', icon: Users, accent: 'text-primary' },
     { title: 'Departments', value: departmentCount, note: 'Active departments', icon: Building2, accent: 'text-muted-foreground' },
-    { title: 'Total Applications', value: scopedStats.total, note: isDirectorView ? 'Principal leaves' : 'Staff leaves', icon: FileCheck, accent: 'text-muted-foreground' },
+    { title: 'Total Applications', value: scopedStats.total, note: isDirectorView ? 'Principal + escalated staff leaves' : 'Staff leaves', icon: FileCheck, accent: 'text-muted-foreground' },
     { title: 'Approved', value: scopedStats.approved, note: 'Applications', icon: CheckCircle, accent: 'text-green-600' },
     { title: 'Rejected', value: scopedStats.rejected, note: 'Applications', icon: XCircle, accent: 'text-red-600' },
   ];
@@ -146,7 +153,7 @@ export default function AdminDashboard() {
       <div className="space-y-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${portalRoleLabel} Dashboard`}</h1>
+            <h1 className="text-2xl font-playfair-display font-bold gradient-text md:text-3xl">{`${dashboardRoleTitle} Dashboard`}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{isViewer ? 'Read-only access for reports and records' : `Welcome back, ${profile?.full_name}`}</p>
           </div>
 
