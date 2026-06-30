@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+import { sendRegistrationReviewEmail } from '@/lib/email-notifications';
 
 export default function AdminRegister() {
   const [username, setUsername] = useState('');
@@ -70,6 +71,12 @@ export default function AdminRegister() {
       toast.error(error.message);
       return;
     }
+
+    sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'principal' })
+      .catch((emailError) => {
+        console.error('Principal registration email failed:', emailError);
+        toast.warning('Registration saved, but Director email could not be sent. Director can still review from the portal.');
+      });
 
     toast.success('Principal registration submitted! Director approval is required before login.');
     navigate('/admin/login');
