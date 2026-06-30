@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFoo
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { sendRegistrationReviewEmail } from '@/lib/email-notifications';
 
 export default function StaffRegister() {
   const [username, setUsername] = useState('');
@@ -76,6 +77,12 @@ export default function StaffRegister() {
       toast.error(error.message);
       return;
     }
+
+    sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'staff' })
+      .catch((emailError) => {
+        console.error('Staff registration email failed:', emailError);
+        toast.warning('Registration saved, but Principal email could not be sent. Principal can still review from the portal.');
+      });
 
     setShowSuccessDialog(true);
   };
