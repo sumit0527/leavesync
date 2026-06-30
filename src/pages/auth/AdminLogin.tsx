@@ -25,7 +25,7 @@ export default function AdminLogin() {
   const [selectedRole, setSelectedRole] = useState<'principal' | 'main_admin' | 'viewer'>('principal');
 
   const roleLabels = {
-    principal: 'Principal',
+    principal: 'Principal / UH',
     main_admin: 'Director',
     viewer: 'Viewer',
   } as const;
@@ -79,11 +79,11 @@ export default function AdminLogin() {
           await supabase.auth.signOut();
           setLoading(false);
           const actualRoleLabel = loginProfile.role === 'admin'
-            ? 'Principal (current admin account)'
+            ? 'Principal / UH (current admin account)'
             : loginProfile.role === 'main_admin'
               ? 'Director'
               : loginProfile.role === 'principal'
-                ? 'Principal'
+                ? 'Principal / UH'
                 : loginProfile.role === 'viewer'
                   ? 'Viewer'
                   : loginProfile.role;
@@ -283,7 +283,7 @@ export default function AdminLogin() {
                 <SelectContent>
                   <SelectItem value="principal">
                     <div className="flex flex-col py-1">
-                      <span className="font-semibold">Principal</span>
+                      <span className="font-semibold">Principal / UH</span>
                       <span className="text-xs text-muted-foreground">Manages staff approvals and staff leaves</span>
                     </div>
                   </SelectItem>
