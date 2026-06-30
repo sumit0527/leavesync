@@ -419,6 +419,7 @@ export default function AdminCalendar() {
                   const isHol = isHolidayDate(day);
                   const isTod = isToday(day);
                   const isSel = selectedDate && isSameDay(day, selectedDate);
+                  const isWeekendDay = getDay(day) === 0 || getDay(day) === 6;
                   const leavesCount = getLeavesOnDate(day).length;
 
                   return (
@@ -429,7 +430,8 @@ export default function AdminCalendar() {
                         'relative flex h-10 w-full flex-col items-center justify-center rounded-md text-sm transition-all',
                         isSel ? 'ring-2 ring-primary' : '',
                         isHol ? 'bg-destructive/20 text-destructive font-semibold' :
-                          isLeave ? 'bg-primary/20 text-primary font-semibold' : 'hover:bg-muted/50',
+                          isLeave ? 'bg-primary/20 text-primary font-semibold' :
+                          isWeekendDay ? 'bg-red-100/80 text-red-700 font-semibold hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300' : 'hover:bg-muted/50',
                         isTod && !isLeave && !isHol ? 'border border-primary text-primary font-bold' : '',
                         !isSameMonth(day, currentDate) ? 'opacity-30' : '',
                       ].join(' ')}
@@ -453,6 +455,10 @@ export default function AdminCalendar() {
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded bg-destructive/20 ring-1 ring-destructive/40" />
                   <span className="text-xs text-muted-foreground">Holiday</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded bg-red-100 ring-1 ring-red-300 dark:bg-red-950/30" />
+                  <span className="text-xs text-muted-foreground">Weekend</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded border border-primary" />
@@ -515,7 +521,7 @@ export default function AdminCalendar() {
                       </div>
                     )}
                     {selectedDayLeaves.length === 0 && !selectedHoliday ? (
-                      <p className="text-xs text-muted-foreground">No approved leaves or holiday on this day</p>
+                      <p className="text-xs text-muted-foreground">No approved leaves, holiday, or weekend note on this day</p>
                     ) : selectedDayLeaves.length > 0 ? (
                       <div className="space-y-2">
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
