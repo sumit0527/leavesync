@@ -126,6 +126,7 @@ async function createActionUrl(supabaseAdmin: ReturnType<typeof createClient>, p
 
   const { error } = await supabaseAdmin.from('email_action_tokens').insert({
     token_hash: tokenHash,
+    request_type: 'registration_review',
     target_table: 'profiles',
     target_id: params.targetId,
     actor_profile_id: params.actorProfileId,
