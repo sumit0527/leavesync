@@ -142,15 +142,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (userProfile.approval_status === 'pending') {
           await supabase.auth.signOut();
-          throw new Error(userProfile.role === 'staff' ? 'Your account is pending approval by Principal' : userProfile.role === 'principal' || userProfile.role === 'admin' ? 'Your account is pending approval by Director' : 'Your account is pending approval');
+          throw new Error(userProfile.role === 'staff' ? 'Your account is pending approval by Principal' : ['principal', 'admin'].includes(userProfile.role) ? 'Your account is pending approval by Director' : 'Your account is pending approval');
         }
         
         if (userProfile.approval_status === 'rejected') {
           await supabase.auth.signOut();
-          throw new Error(userProfile.role === 'staff' ? 'Your account has been rejected. Please contact Principal office' : userProfile.role === 'principal' || userProfile.role === 'admin' ? 'Your account has been rejected. Please contact Director office' : 'Your account has been rejected');
+          throw new Error(userProfile.role === 'staff' ? 'Your account has been rejected. Please contact Principal office' : ['principal', 'admin'].includes(userProfile.role) ? 'Your account has been rejected. Please contact Director office' : 'Your account has been rejected');
         }
 
-        if (adminSecret && !['admin', 'principal', 'main_admin', 'viewer'].includes(userProfile.role)) {
+        if (adminSecret && !['admin', 'principal', 'main_admin', 'director', 'viewer'].includes(userProfile.role)) {
           await supabase.auth.signOut();
           throw new Error('This account is not a principal/director/viewer account');
         }
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin') => {
+  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin' | 'director') => {
     try {
       const cleanedUsername = cleanUsername(username);
       const cleanedEmail = email.trim().toLowerCase();
@@ -221,11 +221,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Transition-safe role helpers:
-  // - Existing DB role 'admin' is treated as Principal for now because current admin manages staff flow.
-  // - New DB roles 'principal' and 'main_admin' are prepared for next phases.
+  // Transition-safe role helpers:
+  // - Legacy DB role 'admin' is treated as Principal / UH.
+  // - Legacy DB role 'main_admin' is treated as Director.
+  // - New clean DB roles are 'principal' and 'director'.
   const isLegacyAdmin = profile?.role === 'admin';
   const isPrincipal = profile?.role === 'principal' || profile?.role === 'admin';
-  const isMainAdmin = profile?.role === 'main_admin';
+  const isMainAdmin = profile?.role === 'director' || profile?.role === 'main_admin';
   const isAdmin = isPrincipal || isMainAdmin;
   const isStaff = profile?.role === 'staff';
   const isViewer = profile?.role === 'viewer';
@@ -236,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     : isMainAdmin
       ? 'Director'
       : isPrincipal
-        ? 'Principal'
+        ? 'Principal / UH'
         : isStaff
           ? 'Staff'
           : 'User';
