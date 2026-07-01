@@ -168,9 +168,9 @@ Deno.serve(async (req) => {
     const applicant = await findApplicant(supabaseAdmin, body.applicantUsername, body.applicantRole);
     if (!applicant) return jsonResponse({ error: 'Applicant profile not found yet. Try again in a few seconds.' }, 404);
 
-    const reviewerRoles = body.applicantRole === 'staff' ? ['principal', 'admin'] : ['main_admin'];
-    const reviewerRoleLabel = body.applicantRole === 'staff' ? 'Principal' : 'Director';
-    const applicantRoleLabel = body.applicantRole === 'staff' ? 'Staff' : 'Principal';
+    const reviewerRoles = body.applicantRole === 'staff' ? ['principal', 'admin'] : ['director', 'main_admin'];
+    const reviewerRoleLabel = body.applicantRole === 'staff' ? 'Principal / UH' : 'Director';
+    const applicantRoleLabel = body.applicantRole === 'staff' ? 'Staff' : 'Principal / UH';
     const portalPath = '/admin/employees';
 
     const { data: reviewers, error: reviewersError } = await supabaseAdmin
