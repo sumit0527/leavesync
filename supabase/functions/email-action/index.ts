@@ -61,12 +61,41 @@ Deno.serve(async (req) => {
 
   try {
     if (tokenRow.target_table === 'profiles') {
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      const { error } = await supabaseAdmin
-        .from('profiles')
-        .update({ approval_status: newStatus, approved_by: actorProfileId, approved_at: now, updated_at: now })
-        .eq('id', tokenRow.target_id);
-      if (error) throw error;
+const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+const { error } = await supabaseAdmin
+  .from('profiles')
+  .update({
+    approval_status: newStatus,
+    approved_by: actorProfileId,
+    approved_at: now,
+    updated_at: now
+  })
+  .eq('id', tokenRow.target_id);
+
+if (error) throw error;
+
+// Send registration decision email to applicant after email-button approval/rejection
+const decisionResponse = await fetch(
+  `${supabaseUrl}/functions/v1/send-registration-decision-email`,
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      applicantProfileId: tokenRow.target_id,
+      status: newStatus,
+      reviewerRoleLabel: tokenRow.actor_role === 'main_admin' ? 'Director' : 'Principal'
+    })
+  }
+);
+
+if (!decisionResponse.ok) {
+  const decisionError = await decisionResponse.text().catch(() => '');
+  console.error('Registration decision email failed after email action:', decisionError);
+}
     } else if (tokenRow.target_table === 'leave_applications') {
       const newStatus = action === 'approve' ? 'approved' : 'rejected';
       const { error } = await supabaseAdmin
