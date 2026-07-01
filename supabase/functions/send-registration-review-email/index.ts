@@ -130,7 +130,7 @@ async function createActionUrl(supabaseAdmin: ReturnType<typeof createClient>, p
     target_table: 'profiles',
     target_id: params.targetId,
     actor_profile_id: params.actorProfileId,
-    actor_role: reviewer.role ?? 'admin',
+    actor_role: 'admin',
     action_type: params.action,
     expires_at: expiresAt,
     metadata: { source: 'registration_review_email_phase2' },
