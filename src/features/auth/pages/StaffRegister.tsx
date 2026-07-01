@@ -78,11 +78,12 @@ export default function StaffRegister() {
       return;
     }
 
-    sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'staff' })
-      .catch((emailError) => {
-        console.error('Staff registration email failed:', emailError);
-        toast.warning('Registration saved, but Principal email could not be sent. Principal can still review from the portal.');
-      });
+    try {
+      await sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'staff' });
+    } catch (emailError) {
+      console.error('Staff registration email failed:', emailError);
+      toast.warning('Registration saved, but Principal / UH email could not be sent. Principal / UH can still review from the portal.');
+    }
 
     setShowSuccessDialog(true);
   };
