@@ -22,11 +22,11 @@ export default function AdminLogin() {
   const [showFkNewKey, setShowFkNewKey] = useState(false);
   const [showFkConfirmKey, setShowFkConfirmKey] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<'principal' | 'main_admin' | 'viewer'>('principal');
+  const [selectedRole, setSelectedRole] = useState<'principal' | 'director' | 'viewer'>('principal');
 
   const roleLabels = {
     principal: 'Principal / UH',
-    main_admin: 'Director',
+    director: 'Director',
     viewer: 'Viewer',
   } as const;
 
@@ -73,14 +73,16 @@ export default function AdminLogin() {
       if (loginProfile?.role) {
         const allowedRoles = selectedRole === 'principal'
           ? ['principal', 'admin']
-          : [selectedRole];
+          : selectedRole === 'director'
+            ? ['director', 'main_admin']
+            : [selectedRole];
 
         if (!allowedRoles.includes(loginProfile.role)) {
           await supabase.auth.signOut();
           setLoading(false);
           const actualRoleLabel = loginProfile.role === 'admin'
             ? 'Principal / UH (current admin account)'
-            : loginProfile.role === 'main_admin'
+            : ['director', 'main_admin'].includes(loginProfile.role)
               ? 'Director'
               : loginProfile.role === 'principal'
                 ? 'Principal / UH'
@@ -121,7 +123,7 @@ export default function AdminLogin() {
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (!profile || !['admin', 'principal', 'main_admin'].includes(profile.role)) {
+      if (!profile || !['admin', 'principal', 'main_admin', 'director'].includes(profile.role)) {
         await supabase.auth.signOut();
         throw new Error('This account does not have management privileges');
       }
@@ -274,7 +276,7 @@ export default function AdminLogin() {
               </Label>
               <Select
                 value={selectedRole}
-                onValueChange={(value) => setSelectedRole(value as 'principal' | 'main_admin' | 'viewer')}
+                onValueChange={(value) => setSelectedRole(value as 'principal' | 'director' | 'viewer')}
                 disabled={loading}
               >
                 <SelectTrigger id="loginRole" className="h-12 rounded-xl border-primary/30 bg-card/80 px-3 shadow-sm focus:ring-2 focus:ring-primary/30">
@@ -287,7 +289,7 @@ export default function AdminLogin() {
                       <span className="text-xs text-muted-foreground">Manages staff approvals and staff leaves</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="main_admin">
+                  <SelectItem value="director">
                     <div className="flex flex-col py-1">
                       <span className="font-semibold">Director</span>
                       <span className="text-xs text-muted-foreground">Approves Principal leaves and monitors records</span>
@@ -306,7 +308,7 @@ export default function AdminLogin() {
                   <Users className="mb-1 h-3.5 w-3.5 text-primary" />
                   Staff flow
                 </div>
-                <div className={`rounded-lg border p-2 ${selectedRole === 'main_admin' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-background/50'}`}>
+                <div className={`rounded-lg border p-2 ${selectedRole === 'director' ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border bg-background/50'}`}>
                   <Crown className="mb-1 h-3.5 w-3.5 text-primary" />
                   Director
                 </div>
