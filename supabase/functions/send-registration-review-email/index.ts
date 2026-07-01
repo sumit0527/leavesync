@@ -229,9 +229,18 @@ Deno.serve(async (req) => {
           reviewerId: reviewer.id,
         });
         sentTo.push(reviewer.email);
-      } catch (error) {
-        failed.push(`${reviewer.email}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      }  catch (error) {
+          const errorMessage =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'object' && error !== null
+              ? JSON.stringify(error)
+              : String(error);
+
+  console.error('Registration review email failed for reviewer:', reviewer.email, errorMessage);
+
+  failed.push(`${reviewer.email}: ${errorMessage}`);
+}
     }
 
     return jsonResponse({ success: sentTo.length > 0, sentTo, failed });
