@@ -68,7 +68,7 @@ export default function ApplyLeave() {
   }, [leaveDuration, startDate]);
 
   const fetchPrincipalEmail = async () => {
-    const targetRoles = isPrincipal ? ['main_admin'] : ['admin', 'principal'];
+    const targetRoles = isPrincipal ? ['director', 'main_admin'] : ['principal', 'admin'];
     const fallbackKey = isPrincipal ? 'director_email' : 'admin_email';
 
     const { data: approver } = await supabase
