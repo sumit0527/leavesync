@@ -109,7 +109,8 @@ Deno.serve(async (req) => {
 
     const isApproved = body.status === 'approved';
     const isPrincipal = ['principal', 'admin'].includes(applicant.role);
-    const applicantRoleLabel = isPrincipal ? 'Principal' : 'Staff';
+    const isDirector = ['director', 'main_admin'].includes(applicant.role);
+    const applicantRoleLabel = isPrincipal ? 'Principal / UH' : isDirector ? 'Director' : 'Staff';
     const reviewerRoleLabel = body.reviewerRoleLabel ?? (isPrincipal ? 'Director' : 'Principal');
 
     const subject = isApproved
