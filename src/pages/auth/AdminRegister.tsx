@@ -72,13 +72,14 @@ export default function AdminRegister() {
       return;
     }
 
-    sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'principal' })
-      .catch((emailError) => {
-        console.error('Principal registration email failed:', emailError);
-        toast.warning('Registration saved, but Director email could not be sent. Director can still review from the portal.');
-      });
+    try {
+      await sendRegistrationReviewEmail({ applicantUsername: username, applicantRole: 'principal' });
+    } catch (emailError) {
+      console.error('Principal / UH registration email failed:', emailError);
+      toast.warning('Registration saved, but Director email could not be sent. Director can still review from the portal.');
+    }
 
-    toast.success('Principal registration submitted! Director approval is required before login.');
+    toast.success('Principal / UH registration submitted! Director approval is required before login.');
     navigate('/admin/login');
   };
 
@@ -112,9 +113,9 @@ export default function AdminRegister() {
             <Shield className="h-12 w-12 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-playfair-display gradient-text">Principal Registration</CardTitle>
+            <CardTitle className="text-2xl font-playfair-display gradient-text">Principal / UH Registration</CardTitle>
             <CardDescription className="mt-2">
-              Register as Principal. Director approval is required before login.
+              Register as Principal / UH. Director approval is required before login.
             </CardDescription>
           </div>
         </CardHeader>
@@ -122,7 +123,7 @@ export default function AdminRegister() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
-              Only two approved Principal accounts are allowed. After registration, a Director must approve this account.
+              Only approved Principal / UH accounts are allowed. After registration, a Director must approve this account.
             </div>
 
             <div className="space-y-2">
@@ -130,7 +131,7 @@ export default function AdminRegister() {
               <Input
                 id="fullName"
                 type="text"
-                placeholder="Enter principal full name"
+                placeholder="Enter principal / UH full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 disabled={loading}
@@ -216,7 +217,7 @@ export default function AdminRegister() {
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit Principal Registration
+              Submit Principal / UH Registration
             </Button>
 
             <div className="text-center text-sm">
