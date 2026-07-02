@@ -148,7 +148,6 @@ Deno.serve(async (req) => {
   const reviewerNote = action === 'approve' ? 'Approved from email action link.' : 'Rejected from email action link.';
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
   let applicantEmailSent = false;
-  let leaveApplicantEmailSent = false;
 
   try {
     if (tokenRow.target_table === 'profiles') {
@@ -257,29 +256,6 @@ Deno.serve(async (req) => {
         })
         .eq('id', tokenRow.target_id);
       if (error) throw error;
-
-      const reviewerRoleLabel = ['main_admin', 'director'].includes(String(tokenRow.actor_role)) ? 'Director' : 'Principal / UH';
-      const decisionResponse = await fetch(`${supabaseUrl}/functions/v1/send-leave-decision-email`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          applicationId: tokenRow.target_id,
-          status: newStatus,
-          reviewerRoleLabel,
-          reviewerName: actorProfileName,
-          response: reviewerNote,
-        }),
-      });
-
-      if (decisionResponse.ok) {
-        leaveApplicantEmailSent = true;
-      } else {
-        const decisionError = await decisionResponse.text().catch(() => '');
-        console.error('Leave decision email failed after email action:', decisionError);
-      }
     } else {
       throw new Error('Unsupported target table');
     }
@@ -302,9 +278,7 @@ Deno.serve(async (req) => {
       ? applicantEmailSent
         ? 'The applicant has also been notified by email.'
         : 'The request was handled, but applicant notification email could not be confirmed. Please check email logs if needed.'
-      : leaveApplicantEmailSent
-        ? 'The applicant has also been notified by email.'
-        : 'The leave application was handled, but applicant notification email could not be confirmed. Please check email logs if needed.';
+      : 'You can review the updated status from the portal.';
 
     return redirectToResult({
       result: 'success',
@@ -314,7 +288,7 @@ Deno.serve(async (req) => {
       action: handledText,
       requestType: targetText,
       handledOn: new Date(now).toLocaleString('en-IN'),
-      applicantEmail: tokenRow.target_table === 'profiles' ? (applicantEmailSent ? 'Sent' : 'Not confirmed') : (leaveApplicantEmailSent ? 'Sent' : 'Not confirmed'),
+      applicantEmail: tokenRow.target_table === 'profiles' ? (applicantEmailSent ? 'Sent' : 'Not confirmed') : 'Not applicable',
     });
   } catch (error) {
     return redirectToResult({
