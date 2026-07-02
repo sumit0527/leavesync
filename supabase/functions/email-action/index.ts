@@ -22,24 +22,17 @@ function adminLoginUrl() {
 }
 
 function pageResponse(html: string, status = 200) {
-  const headers = new Headers();
-
-  headers.set('content-type', 'text/html; charset=utf-8');
-  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
-  headers.set('pragma', 'no-cache');
-  headers.set('expires', '0');
-  headers.set('access-control-allow-origin', '*');
-  headers.set('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type');
-  headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
-  headers.set('x-content-type-options', 'nosniff');
-
-  const blob = new Blob([html], {
-    type: 'text/html; charset=utf-8',
-  });
-
-  return new Response(blob, {
+  return new Response(html, {
     status,
-    headers,
+    headers: {
+      'content-type': 'text/html',
+      'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'pragma': 'no-cache',
+      'expires': '0',
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+    },
   });
 }
 
