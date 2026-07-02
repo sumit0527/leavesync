@@ -129,6 +129,22 @@ Deno.serve(async (req) => {
 
   const now = new Date().toISOString();
   const actorProfileId = tokenRow.actor_profile_id ?? null;
+  let actorProfileName: string | null = null;
+
+  if (actorProfileId) {
+    const { data: actorProfile, error: actorProfileError } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name, username')
+      .eq('id', actorProfileId)
+      .maybeSingle();
+
+    if (actorProfileError) {
+      console.error('Failed to fetch email action actor profile:', actorProfileError);
+    } else {
+      actorProfileName = actorProfile?.full_name || actorProfile?.username || null;
+    }
+  }
+
   const reviewerNote = action === 'approve' ? 'Approved from email action link.' : 'Rejected from email action link.';
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
   let applicantEmailSent = false;
@@ -188,6 +204,7 @@ Deno.serve(async (req) => {
           applicantProfileId: tokenRow.target_id,
           status: newStatus,
           reviewerRoleLabel,
+          reviewerName: actorProfileName,
         }),
       });
 
