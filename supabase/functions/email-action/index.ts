@@ -22,13 +22,15 @@ function adminLoginUrl() {
 }
 
 function pageResponse(html: string, status = 200) {
+  const headers = new Headers(corsHeaders);
+
+  // Force browser to render HTML, not show raw text
+  headers.set('Content-Type', 'text/html; charset=utf-8');
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+
   return new Response(html, {
     status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-    },
+    headers,
   });
 }
 
