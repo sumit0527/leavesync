@@ -132,6 +132,16 @@ export default function ViewLeave() {
         return;
       }
 
+      supabase.functions.invoke('send-leave-decision-email', {
+        body: {
+          applicationId: selectedApp.id,
+          status: action === 'approve' ? 'approved' : 'rejected',
+          reviewerRoleLabel: isDirectorView ? 'Director' : 'Principal / UH',
+          reviewerName: profile.full_name || profile.username,
+          response: response.trim() || null,
+        }
+      }).catch((emailError: unknown) => console.error('Leave decision email failed:', emailError));
+
       toast.success(result.message || `Application ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
       setDialogOpen(false);
       setSelectedApp(null);
