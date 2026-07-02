@@ -111,14 +111,15 @@ export default function EmployeeApproval() {
       await supabase.from('notifications').insert({
         user_id: employeeId,
         title: `${managedRoleLabel} Account Approved`,
-        message: `Congratulations ${employeeName}! Your ${managedRoleLabel.toLowerCase()} account has been approved by the ${isDirectorManagingPrincipals ? 'Director' : 'Principal'}. You can now login and access the leave management system.`,
+        message: `Congratulations ${employeeName}! Your ${managedRoleLabel.toLowerCase()} account has been approved by ${profile.full_name || profile.username || (isDirectorManagingPrincipals ? 'Director' : 'Principal / UH')}. You can now login and access the leave management system.`,
         type: 'approval',
       });
 
       sendRegistrationDecisionEmail({
         applicantProfileId: employeeId,
         status: 'approved',
-        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal',
+        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal / UH',
+        reviewerName: profile.full_name || profile.username || null,
       }).catch((emailError) => console.error('Approval email notification failed:', emailError));
 
       toast.success(`${managedRoleLabel} approved successfully`);
@@ -150,14 +151,15 @@ export default function EmployeeApproval() {
       await supabase.from('notifications').insert({
         user_id: employeeId,
         title: `${managedRoleLabel} Account Rejected`,
-        message: `Dear ${employeeName}, your ${managedRoleLabel.toLowerCase()} account registration has been rejected by the ${isDirectorManagingPrincipals ? 'Director' : 'Principal'}. Please contact the ${isDirectorManagingPrincipals ? 'Director office' : 'Principal office'} for more information.`,
+        message: `Dear ${employeeName}, your ${managedRoleLabel.toLowerCase()} account registration has been rejected by ${profile.full_name || profile.username || (isDirectorManagingPrincipals ? 'Director' : 'Principal / UH')}. Please contact the ${isDirectorManagingPrincipals ? 'Director office' : 'Principal / UH office'} for more information.`,
         type: 'rejection',
       });
 
       sendRegistrationDecisionEmail({
         applicantProfileId: employeeId,
         status: 'rejected',
-        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal',
+        reviewerRoleLabel: isDirectorManagingPrincipals ? 'Director' : 'Principal / UH',
+        reviewerName: profile.full_name || profile.username || null,
       }).catch((emailError) => console.error('Rejection email notification failed:', emailError));
 
       toast.success(`${managedRoleLabel} rejected`);
