@@ -231,7 +231,7 @@ export default function ApplyLeave() {
         }
       }
 
-      const { error: insertError } = await supabase
+      const { data: insertedApplication, error: insertError } = await supabase
         .from('leave_applications')
         .insert({
           staff_id: profile?.id,
@@ -243,22 +243,19 @@ export default function ApplyLeave() {
           half_day_period: leaveDuration === 'half_day' ? halfDayPeriod : null,
           reason: reason.trim(),
           document_url: documentUrl
-        });
+        })
+        .select('id')
+        .single();
 
       if (insertError) throw insertError;
 
-      supabase.functions.invoke('send-leave-notification', {
-        body: {
-          staffName: profile?.full_name,
-          leaveType: selectedLeaveType?.name,
-          startDate: format(startDate, 'yyyy-MM-dd'),
-          endDate: format(endDate, 'yyyy-MM-dd'),
-          leaveDays,
-          leaveDuration,
-          halfDayPeriod: leaveDuration === 'half_day' ? halfDayPeriod : null,
-          reason: reason.trim()
-        }
-      }).catch((err: unknown) => console.error('Email notification failed:', err));
+      if (insertedApplication?.id) {
+        supabase.functions.invoke('send-leave-review-email', {
+          body: {
+            applicationId: insertedApplication.id
+          }
+        }).catch((err: unknown) => console.error('Leave review email failed:', err));
+      }
 
       toast.success(isPrincipal ? 'Leave application submitted to Director for approval!' : 'Leave application submitted to Principal for approval!');
       navigate('/staff/leave-history');
