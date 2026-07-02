@@ -29,7 +29,8 @@ export async function sendRegistrationReviewEmail(params: {
 export async function sendRegistrationDecisionEmail(params: {
   applicantProfileId: string;
   status: RegistrationDecisionStatus;
-  reviewerRoleLabel: 'Principal' | 'Director';
+  reviewerRoleLabel: 'Principal' | 'Principal / UH' | 'Director';
+  reviewerName?: string | null;
 }) {
   const { error } = await supabase.functions.invoke('send-registration-decision-email', {
     body: params,
