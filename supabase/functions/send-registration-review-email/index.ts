@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     const reviewerRoles = body.applicantRole === 'staff' ? ['principal', 'admin'] : ['director', 'main_admin'];
     const reviewerRoleLabel = body.applicantRole === 'staff' ? 'Principal / UH' : 'Director';
     const applicantRoleLabel = body.applicantRole === 'staff' ? 'Staff' : 'Principal / UH';
-    const portalPath = '/admin/employees';
+    const portalPath = '/admin/login';
 
     const { data: reviewers, error: reviewersError } = await supabaseAdmin
       .from('profiles')
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
           buttons: [
             { label: 'Approve', url: approveUrl, variant: 'approve' },
             { label: 'Reject', url: rejectUrl, variant: 'reject' },
-            { label: 'Open Portal', url: `${appBaseUrl()}${portalPath}`, variant: 'default' },
+            { label: 'Open Admin Login', url: `${appBaseUrl()}${portalPath}`, variant: 'default' },
           ],
         });
 
