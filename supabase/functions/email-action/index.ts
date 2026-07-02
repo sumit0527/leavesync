@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, htmlResponse, jsonResponse } from '../_shared/cors.ts';
+import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 async function sha256Hex(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -16,8 +16,20 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", '&#039;');
 }
 
-function portalUrl() {
-  return (Deno.env.get('APP_BASE_URL') ?? 'https://gsmleave.in').replace(/\/$/, '');
+function adminLoginUrl() {
+  const baseUrl = (Deno.env.get('APP_BASE_URL') ?? 'https://gsmleave.in').replace(/\/$/, '');
+  return `${baseUrl}/admin/login`;
+}
+
+function pageResponse(html: string, status = 200) {
+  return new Response(html, {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    },
+  });
 }
 
 function statusPage(params: {
@@ -46,7 +58,7 @@ function statusPage(params: {
     : '';
 
   const portalButton = params.showPortalButton !== false
-    ? `<a href="${portalUrl()}" style="display:inline-block;background:#a16207;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;">Open leaveSYNC Portal</a>`
+    ? `<a href="${adminLoginUrl()}" style="display:inline-block;background:#a16207;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;">Open Admin Login</a>`
     : '';
 
   return `<!doctype html>
@@ -68,7 +80,7 @@ function statusPage(params: {
         ${detailsHtml}
         ${portalButton}
         <div style="margin-top:26px;padding-top:18px;border-top:1px solid #f1e7d0;color:#9ca3af;font-size:12px;line-height:1.5;">
-          G.D. Sawant College Leave Management Portal<br />You can safely close this page after reviewing the message.
+          G.D. Sawant College Leave Management Portal<br />You can safely close this page after reviewing the message, or open the Admin Login page to check the portal.
         </div>
       </div>
     </div>
@@ -94,7 +106,7 @@ Deno.serve(async (req) => {
   const action = (url.searchParams.get('action') || '').toLowerCase();
 
   if (!token || !['approve', 'reject'].includes(action)) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Invalid Action Link',
       message: 'This email action link is missing required information. Please open the portal and review the request from there.',
       ok: false,
@@ -119,7 +131,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (tokenError || !tokenRow) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Action Link Not Found',
       message: 'This action link is invalid, expired, or already removed. Please open the portal to check the latest request status.',
       ok: false,
@@ -128,7 +140,7 @@ Deno.serve(async (req) => {
   }
 
   if (tokenRow.used_at) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Request Already Handled',
       message: `This request was already ${actionPastTense(String(tokenRow.used_action ?? action))}. No further action is needed.`,
       ok: true,
@@ -141,7 +153,7 @@ Deno.serve(async (req) => {
   }
 
   if (new Date(tokenRow.expires_at).getTime() < Date.now()) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Link Expired',
       message: 'This approval link has expired. Please open the portal and handle the request from there.',
       ok: false,
@@ -150,7 +162,7 @@ Deno.serve(async (req) => {
   }
 
   if (tokenRow.action_type && tokenRow.action_type !== action) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Wrong Action Link',
       message: 'This link is not valid for the selected action. Please use the correct Approve or Reject button from the email.',
       ok: false,
@@ -181,7 +193,7 @@ Deno.serve(async (req) => {
           .update({ used_at: now, used_action: applicant.approval_status === 'approved' ? 'approve' : 'reject', used_by: actorProfileId, updated_at: now })
           .eq('id', tokenRow.id);
 
-        return htmlResponse(statusPage({
+        return pageResponse(statusPage({
           title: 'Request Already Handled',
           message: `This registration request was already ${statusPastTense(applicant.approval_status)}. No further action is needed.`,
           ok: true,
@@ -235,7 +247,7 @@ Deno.serve(async (req) => {
           .update({ used_at: now, used_action: leaveApplication.status === 'approved' ? 'approve' : 'reject', used_by: actorProfileId, updated_at: now })
           .eq('id', tokenRow.id);
 
-        return htmlResponse(statusPage({
+        return pageResponse(statusPage({
           title: 'Request Already Handled',
           message: `This leave application was already ${statusPastTense(leaveApplication.status)}. No further action is needed.`,
           ok: true,
@@ -270,7 +282,7 @@ Deno.serve(async (req) => {
         : 'The request was handled, but applicant notification email could not be confirmed. Please check email logs if needed.'
       : 'You can review the updated status from the portal.';
 
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: action === 'approve' ? 'Request Approved Successfully' : 'Request Rejected Successfully',
       message: `The ${targetText} was ${handledText} successfully. ${notificationText}`,
       ok: true,
@@ -282,7 +294,7 @@ Deno.serve(async (req) => {
       ],
     }));
   } catch (error) {
-    return htmlResponse(statusPage({
+    return pageResponse(statusPage({
       title: 'Action Failed',
       message: error instanceof Error ? error.message : 'Something went wrong while handling this request.',
       ok: false,
