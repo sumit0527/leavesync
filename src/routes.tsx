@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 // Auth pages
 import HomePage from './pages/HomePage';
+import EmailActionResult from './pages/EmailActionResult';
 import StaffLogin from './pages/auth/StaffLogin';
 import StaffRegister from './pages/auth/StaffRegister';
 import AdminLogin from './pages/auth/AdminLogin';
@@ -40,6 +41,7 @@ export interface RouteConfig {
 export const routes: RouteConfig[] = [
   // Home
   { name: 'Home', path: '/', element: <HomePage />, public: true },
+  { name: 'Email Action Result', path: '/email-action-result', element: <EmailActionResult />, public: true },
 
   // Staff auth
   { name: 'Staff Login', path: '/staff/login', element: <StaffLogin />, public: true },
