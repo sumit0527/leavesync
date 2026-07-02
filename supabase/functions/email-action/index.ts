@@ -22,13 +22,22 @@ function adminLoginUrl() {
 }
 
 function pageResponse(html: string, status = 200) {
-  const headers = new Headers(corsHeaders);
+  const headers = new Headers();
 
-  // Force browser to render HTML, not show raw text
-  headers.set('Content-Type', 'text/html; charset=utf-8');
-  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('content-type', 'text/html; charset=utf-8');
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('pragma', 'no-cache');
+  headers.set('expires', '0');
+  headers.set('access-control-allow-origin', '*');
+  headers.set('access-control-allow-headers', 'authorization, x-client-info, apikey, content-type');
+  headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
+  headers.set('x-content-type-options', 'nosniff');
 
-  return new Response(html, {
+  const blob = new Blob([html], {
+    type: 'text/html; charset=utf-8',
+  });
+
+  return new Response(blob, {
     status,
     headers,
   });
@@ -44,8 +53,8 @@ function statusPage(params: {
 }) {
   const tone = params.tone ?? (params.ok === false ? 'danger' : 'success');
   const palette = {
-    success: { color: '#15803d', bg: '#dcfce7', icon: '✓' },
-    danger: { color: '#b91c1c', bg: '#fee2e2', icon: '!' },
+    success: { color: '#15803d', bg: '#dcfce7', icon: '&#10003;' },
+    danger: { color: '#b91c1c', bg: '#fee2e2', icon: '&#10005;' },
     warning: { color: '#a16207', bg: '#fef3c7', icon: 'i' },
   }[tone];
 
