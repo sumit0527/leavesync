@@ -5,7 +5,8 @@ import { buildProfessionalEmail, plainTextFromHtml } from '../_shared/emailTempl
 type DecisionBody = {
   applicantProfileId: string;
   status: 'approved' | 'rejected';
-  reviewerRoleLabel?: 'Principal' | 'Director';
+  reviewerRoleLabel?: 'Principal' | 'Principal / UH' | 'Director';
+  reviewerName?: string | null;
 };
 
 function clean(value: unknown) {
@@ -111,7 +112,9 @@ Deno.serve(async (req) => {
     const isPrincipal = ['principal', 'admin'].includes(applicant.role);
     const isDirector = ['director', 'main_admin'].includes(applicant.role);
     const applicantRoleLabel = isPrincipal ? 'Principal / UH' : isDirector ? 'Director' : 'Staff';
-    const reviewerRoleLabel = body.reviewerRoleLabel ?? (isPrincipal ? 'Director' : 'Principal');
+    const reviewerRoleLabel = body.reviewerRoleLabel ?? (isPrincipal ? 'Director' : 'Principal / UH');
+    const reviewerName = clean(body.reviewerName);
+    const reviewerDisplay = reviewerName !== '-' ? `${reviewerName} (${reviewerRoleLabel})` : reviewerRoleLabel;
 
     const subject = isApproved
       ? `${applicantRoleLabel} Account Approved — leaveSYNC`
@@ -121,13 +124,14 @@ Deno.serve(async (req) => {
       title: isApproved ? 'Account Approved' : 'Account Registration Rejected',
       greeting: `Dear ${clean(applicant.full_name)},`,
       intro: isApproved
-        ? `Your ${applicantRoleLabel.toLowerCase()} account has been approved by the ${reviewerRoleLabel}. You can now log in to leaveSYNC.`
-        : `Your ${applicantRoleLabel.toLowerCase()} account registration has been rejected by the ${reviewerRoleLabel}. Please contact the ${reviewerRoleLabel} office for more information.`,
+        ? `Your ${applicantRoleLabel.toLowerCase()} account has been approved by ${reviewerDisplay}. You can now log in to leaveSYNC.`
+        : `Your ${applicantRoleLabel.toLowerCase()} account registration has been rejected by ${reviewerDisplay}. Please contact the ${reviewerRoleLabel} office for more information.`,
       details: [
         { label: 'Name', value: applicant.full_name },
         { label: 'Username', value: applicant.username },
         { label: 'Role', value: applicantRoleLabel },
         { label: 'Status', value: isApproved ? 'Approved' : 'Rejected' },
+        { label: 'Reviewed By', value: reviewerDisplay },
         { label: 'Reviewed On', value: applicant.approved_at ? new Date(applicant.approved_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN') },
       ],
       note: isApproved
@@ -143,7 +147,7 @@ Deno.serve(async (req) => {
       subject,
       html,
       relatedProfileId: applicant.id,
-      metadata: { status: body.status, applicantRole: applicant.role, reviewerRoleLabel },
+      metadata: { status: body.status, applicantRole: applicant.role, reviewerRoleLabel, reviewerName: body.reviewerName ?? null },
     });
 
     return jsonResponse({ success: true, sentTo: applicant.email });
