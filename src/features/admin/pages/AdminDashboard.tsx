@@ -9,12 +9,13 @@ import { FileCheck, Users, CheckCircle, XCircle, Clock, Building2, UserPlus, Cal
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/db/supabase';
+import { formatCollegeUnit } from '@/lib/college-units';
 
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
 export default function AdminDashboard() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
-  const dashboardRoleTitle = isPrincipal && !isViewer ? 'Principal / UH' : portalRoleLabel;
+  const dashboardRoleTitle = isPrincipal && !isViewer ? `${formatCollegeUnit((profile as any)?.college_unit)} Principal / UH` : portalRoleLabel;
   const { applications, loading } = useLeaveApplications();
   const isDirectorView = isMainAdmin || isViewer;
   const [employeeCount, setEmployeeCount] = useState(0);
@@ -28,12 +29,18 @@ export default function AdminDashboard() {
   };
 
   const fetchCounts = useCallback(async () => {
-    const { count: empCount } = await supabase
+    let empQuery = supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('role', 'staff')
       .eq('approval_status', 'approved')
       .or('employment_status.is.null,employment_status.neq.past');
+
+    if (isPrincipal && !isDirectorView) {
+      empQuery = empQuery.eq('college_unit', (profile as any)?.college_unit);
+    }
+
+    const { count: empCount } = await empQuery;
 
     const { count: deptCount } = await supabase
       .from('departments')
@@ -41,21 +48,27 @@ export default function AdminDashboard() {
 
     setEmployeeCount(empCount ?? 0);
     setDepartmentCount(deptCount ?? 0);
-  }, []);
+  }, [isPrincipal, isDirectorView, profile?.college_unit]);
 
   const fetchNewStaff = useCallback(async () => {
     // Dashboard registration box should show staff registrations for Principal, Director, and Viewer.
     // Principal registrations are handled only in the dedicated Director approval flow.
     const rolesToShow = ['staff'];
 
-    const { data, error } = await supabase
+    let pendingQuery = supabase
       .from('profiles')
-      .select('id, full_name, role, created_at, department:departments(name)')
+      .select('id, full_name, role, college_unit, admin_designation, created_at, department:departments(name)')
       .in('role', rolesToShow)
       .eq('approval_status', 'pending')
       .or('employment_status.is.null,employment_status.neq.past')
       .order('created_at', { ascending: false })
       .limit(4);
+
+    if (isPrincipal && !isDirectorView) {
+      pendingQuery = pendingQuery.eq('college_unit', (profile as any)?.college_unit);
+    }
+
+    const { data, error } = await pendingQuery;
 
     if (error) {
       console.error('Failed to load pending registrations:', error);
@@ -64,7 +77,7 @@ export default function AdminDashboard() {
     }
 
     setNewStaffList((data ?? []) as any);
-  }, []);
+  }, [isPrincipal, isDirectorView, profile?.college_unit]);
 
   useEffect(() => {
     fetchCounts();
@@ -86,8 +99,8 @@ export default function AdminDashboard() {
 
   const dashboardScopeApplications = applications.filter((app) => {
     const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
-    if (isPrincipal && !isDirectorView) return applicantRole === 'staff';
-    if (isDirectorView) return applicantRole === 'principal' || applicantRole === 'admin' || isEscalatedStaffLeave(app);
+    if (isPrincipal && !isDirectorView) return applicantRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
+    if (isDirectorView) return true;
     return applicantRole === 'staff';
   });
 
@@ -121,7 +134,7 @@ export default function AdminDashboard() {
 
       // Principal dashboard must show only staff-side leave work.
       // Principal leave applications belong to Director and should not appear here.
-      if (isPrincipal && !isDirectorView) return applicantRole === 'staff';
+      if (isPrincipal && !isDirectorView) return applicantRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
 
       // Director dashboard can monitor both staff and Principal leaves, with a role label below.
       if (isDirectorView) return applicantRole === 'staff' || applicantRole === 'principal' || applicantRole === 'admin';
