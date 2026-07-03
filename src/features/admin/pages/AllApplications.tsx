@@ -31,7 +31,7 @@ const formatLeaveDuration = (app: any) => {
 
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
-  const { isMainAdmin, isPrincipal, isViewer } = useAuth();
+  const { profile, isMainAdmin, isPrincipal, isViewer } = useAuth();
   const isDirectorView = isMainAdmin || isViewer;
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
@@ -55,13 +55,13 @@ export default function AllApplications() {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
     if (isDirectorView) {
-      // Director's All Applications section shows Principal leaves plus staff leaves escalated after 24 hours.
-      return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
+      // Director and Viewer can see all leave applications across Junior, Senior, and Pharmacy.
+      return true;
     }
 
     if (isPrincipal && !isViewer) {
-      // Principal's All Applications section shows staff leave applications only.
-      return staffRole === 'staff';
+      // Principal/UH sees staff leave applications from their own college unit only.
+      return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     }
 
     return true;
