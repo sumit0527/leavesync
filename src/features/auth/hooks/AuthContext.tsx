@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin' | 'director') => {
+  const signUpWithUsername = async (username: string, password: string, fullName: string, phone: string, email: string, address: string, departmentId: string, adminSecret?: string, requestedRole?: 'staff' | 'admin' | 'principal' | 'main_admin' | 'director', options?: { collegeUnit?: 'junior' | 'senior' | 'pharmacy'; adminDesignation?: 'principal' | 'uh' }) => {
     try {
       const cleanedUsername = cleanUsername(username);
       const cleanedEmail = email.trim().toLowerCase();
@@ -202,7 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: cleanedEmail,
             address: address.trim(),
             department_id: departmentId,
-            role: adminSecret ? (requestedRole ?? 'principal') : 'staff'
+            role: adminSecret ? (requestedRole ?? 'admin') : 'staff',
+            college_unit: options?.collegeUnit ?? null,
+            admin_designation: adminSecret ? (options?.adminDesignation ?? 'principal') : null
           }
         }
       });
