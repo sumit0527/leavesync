@@ -68,35 +68,83 @@ export default function ApplyLeave() {
   }, [leaveDuration, startDate]);
 
   const fetchDirectorEmails = async () => {
-    const { data: directors, error } = await supabase
-      .from('profiles')
-      .select('email')
-      .in('role', ['main_admin', 'director'])
-      .eq('approval_status', 'approved')
-      .not('email', 'is', null)
-      .order('created_at', { ascending: true });
+    try {
+      // Staff users normally cannot read Director profiles because of RLS.
+      // This SECURITY DEFINER RPC safely returns only approved Director email addresses.
+      const { data, error } = await supabase.rpc('get_approved_director_emails');
 
-    if (error) {
+      if (error) {
+        console.error('Failed to fetch director emails via RPC:', error);
+        setDirectorEmails([]);
+        return;
+      }
+
+      const emails = Array.from(new Set((Array.isArray(data) ? data : []).filter(Boolean))) as string[];
+      setDirectorEmails(emails);
+    } catch (error) {
       console.error('Failed to fetch director emails:', error);
-      return;
+      setDirectorEmails([]);
     }
+  };
 
-    const emails = Array.from(new Set((directors ?? []).map((director) => director.email).filter(Boolean))) as string[];
-    setDirectorEmails(emails);
+  const ensureAndFetchLeaveBalance = async (showError = false): Promise<number> => {
+    if (!profile?.id || !leaveTypeId) return 0;
+
+    const currentYear = new Date().getFullYear();
+
+    const readBalance = async () => {
+      const { data, error } = await supabase
+        .from('staff_leave_allocations')
+        .select('id,total_allocated,used,remaining')
+        .eq('staff_id', profile.id)
+        .eq('leave_type_id', leaveTypeId)
+        .eq('year', currentYear)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    };
+
+    try {
+      let allocation = await readBalance();
+
+      // Safety net: if approval happened before allocations were created,
+      // initialize them now and read again.
+      if (!allocation) {
+        const { error: initError } = await supabase.rpc('initialize_staff_leave_allocations', {
+          staff_id_param: profile.id,
+        });
+
+        if (initError) {
+          console.error('Failed to initialize leave allocations:', initError);
+        }
+
+        allocation = await readBalance();
+      }
+
+      const balance = Number(
+        allocation?.remaining ?? ((allocation?.total_allocated ?? 0) - (allocation?.used ?? 0)) ?? 0
+      );
+
+      setAvailableBalance(Math.max(0, balance));
+
+      if (!allocation && showError) {
+        toast.error('No leave allocation found. Please contact admin.');
+      }
+
+      return Math.max(0, balance);
+    } catch (error) {
+      console.error('Failed to fetch leave balance:', error);
+      if (showError) toast.error('Failed to fetch leave balance. Please try again.');
+      setAvailableBalance(0);
+      return 0;
+    }
   };
 
   const fetchLeaveBalance = async () => {
-    if (!profile?.id || !leaveTypeId) return;
-
-    const { data } = await supabase
-      .from('staff_leave_allocations')
-      .select('remaining')
-      .eq('staff_id', profile.id)
-      .eq('leave_type_id', leaveTypeId)
-      .eq('year', new Date().getFullYear())
-      .maybeSingle();
-
-    setAvailableBalance(Number(data?.remaining ?? 0));
+    await ensureAndFetchLeaveBalance(false);
   };
 
   const calculateLeaveDays = async (start: Date, end: Date): Promise<number> => {
@@ -218,8 +266,10 @@ ${profile?.full_name ?? ''}`
         return;
       }
 
-      if (availableBalance < leaveDays) {
-        setBalanceDialogMessage(`Insufficient leave balance. You need ${leaveDays} day(s), but only ${availableBalance} day(s) are available for ${selectedLeaveType?.name ?? 'this leave type'}.`);
+      const latestBalance = await ensureAndFetchLeaveBalance(true);
+
+      if (latestBalance < leaveDays) {
+        setBalanceDialogMessage(`Insufficient leave balance. You need ${leaveDays} day(s), but only ${latestBalance} day(s) are available for ${selectedLeaveType?.name ?? 'this leave type'}.`);
         setBalanceDialogOpen(true);
         setLoading(false);
         return;
@@ -457,14 +507,25 @@ ${profile?.full_name ?? ''}`
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>Close</Button>
-            <Button asChild disabled={directorEmails.length === 0}>
-              <a href={getExtraLeaveMailtoHref()} onClick={() => {
-                if (directorEmails.length === 0) toast.error('No approved Director email found');
-              }}>
+            {directorEmails.length > 0 ? (
+              <Button asChild>
+                <a href={getExtraLeaveMailtoHref()}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Request Extra Leave Approval
+                </a>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={async () => {
+                  await fetchDirectorEmails();
+                  toast.error('No approved Director email found. Please check Director role, approval status, and email.');
+                }}
+              >
                 <Mail className="mr-2 h-4 w-4" />
-                Request Extra Leave Approval
-              </a>
-            </Button>
+                Check Director Email
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
