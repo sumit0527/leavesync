@@ -10,6 +10,8 @@ type Profile = {
   phone: string | null;
   address: string | null;
   role: string | null;
+  college_unit?: string | null;
+  admin_designation?: string | null;
   department_id: string | null;
   approval_status: string | null;
   created_at: string | null;
@@ -38,6 +40,21 @@ function generateToken() {
 function clean(value: unknown) {
   const text = String(value ?? '').trim();
   return text || '-';
+}
+
+function formatCollegeUnit(unit: unknown) {
+  const value = String(unit ?? '').toLowerCase();
+  if (value === 'junior') return 'Junior College';
+  if (value === 'senior') return 'Senior College';
+  if (value === 'pharmacy') return 'Pharmacy College';
+  return 'Unit Not Assigned';
+}
+
+function formatDesignation(value: unknown) {
+  const designation = String(value ?? '').toLowerCase();
+  if (designation === 'uh') return 'UH';
+  if (designation === 'principal') return 'Principal';
+  return 'Principal / UH';
 }
 
 async function findApplicant(supabaseAdmin: ReturnType<typeof createClient>, username: string, role: 'staff' | 'principal') {
@@ -118,6 +135,7 @@ async function sendEmail(supabaseAdmin: ReturnType<typeof createClient>, resendA
 async function createActionUrl(supabaseAdmin: ReturnType<typeof createClient>, params: {
   targetId: string;
   actorProfileId: string;
+  actorRole: string;
   action: 'approve' | 'reject';
 }) {
   const token = generateToken();
@@ -130,7 +148,7 @@ async function createActionUrl(supabaseAdmin: ReturnType<typeof createClient>, p
     target_table: 'profiles',
     target_id: params.targetId,
     actor_profile_id: params.actorProfileId,
-    actor_role: 'admin',
+    actor_role: params.actorRole,
     action_type: params.action,
     expires_at: expiresAt,
     metadata: { source: 'registration_review_email_phase2' },
@@ -171,16 +189,26 @@ Deno.serve(async (req) => {
     if (!applicant) return jsonResponse({ error: 'Applicant profile not found yet. Try again in a few seconds.' }, 404);
 
     const reviewerRoles = body.applicantRole === 'staff' ? ['principal', 'admin'] : ['director', 'main_admin'];
-    const reviewerRoleLabel = body.applicantRole === 'staff' ? 'Principal / UH' : 'Director';
-    const applicantRoleLabel = body.applicantRole === 'staff' ? 'Staff' : 'Principal / UH';
+    const reviewerRoleLabel = body.applicantRole === 'staff' ? `${formatCollegeUnit(applicant.college_unit)} Principal / UH` : 'Director';
+    const applicantRoleLabel = body.applicantRole === 'staff'
+      ? 'Staff'
+      : `${formatCollegeUnit(applicant.college_unit)} ${formatDesignation(applicant.admin_designation)}`;
     const portalPath = '/admin/login';
 
-    const { data: reviewers, error: reviewersError } = await supabaseAdmin
+    let reviewerQuery = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, username, email')
+      .select('id, full_name, username, email, role, college_unit, admin_designation')
       .in('role', reviewerRoles)
       .eq('approval_status', 'approved')
       .not('email', 'is', null);
+
+    // Staff registration goes only to Principal/UH from the same college unit.
+    // Principal/UH registration goes to all Directors.
+    if (body.applicantRole === 'staff') {
+      reviewerQuery = reviewerQuery.eq('college_unit', applicant.college_unit);
+    }
+
+    const { data: reviewers, error: reviewersError } = await reviewerQuery;
 
     if (reviewersError) throw reviewersError;
 
@@ -190,16 +218,16 @@ Deno.serve(async (req) => {
     }
 
     const subject = body.applicantRole === 'staff'
-      ? `New Staff Registration Pending — ${clean(applicant.full_name)}`
-      : `New Principal Registration Pending — ${clean(applicant.full_name)}`;
+      ? `New ${formatCollegeUnit(applicant.college_unit)} Staff Registration Pending — ${clean(applicant.full_name)}`
+      : `New ${formatCollegeUnit(applicant.college_unit)} ${formatDesignation(applicant.admin_designation)} Registration Pending — ${clean(applicant.full_name)}`;
 
     const sentTo: string[] = [];
     const failed: string[] = [];
 
     for (const reviewer of recipients as any[]) {
       try {
-        const approveUrl = await createActionUrl(supabaseAdmin, { targetId: applicant.id, actorProfileId: reviewer.id, action: 'approve' });
-        const rejectUrl = await createActionUrl(supabaseAdmin, { targetId: applicant.id, actorProfileId: reviewer.id, action: 'reject' });
+        const approveUrl = await createActionUrl(supabaseAdmin, { targetId: applicant.id, actorProfileId: reviewer.id, actorRole: reviewer.role, action: 'approve' });
+        const rejectUrl = await createActionUrl(supabaseAdmin, { targetId: applicant.id, actorProfileId: reviewer.id, actorRole: reviewer.role, action: 'reject' });
 
         const html = buildProfessionalEmail({
           title: `${applicantRoleLabel} Registration Review Required`,
@@ -209,6 +237,8 @@ Deno.serve(async (req) => {
             { label: 'Applicant Name', value: applicant.full_name },
             { label: 'Username', value: applicant.username },
             { label: 'Role', value: applicantRoleLabel },
+            { label: 'College Unit', value: formatCollegeUnit(applicant.college_unit) },
+            { label: 'Designation', value: body.applicantRole === 'staff' ? 'Staff' : formatDesignation(applicant.admin_designation) },
             { label: 'Department', value: body.applicantRole === 'staff' ? applicant.department?.name : 'Not applicable' },
             { label: 'Email', value: applicant.email },
             { label: 'Phone', value: applicant.phone },
@@ -228,6 +258,8 @@ Deno.serve(async (req) => {
           applicantRole: body.applicantRole,
           reviewerRole: reviewerRoleLabel,
           reviewerId: reviewer.id,
+          collegeUnit: applicant.college_unit,
+          adminDesignation: applicant.admin_designation,
         });
         sentTo.push(reviewer.email);
       }  catch (error) {
