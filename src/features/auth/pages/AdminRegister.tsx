@@ -7,16 +7,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 import { sendRegistrationReviewEmail } from '@/lib/email-notifications';
+import { ADMIN_DESIGNATIONS, COLLEGE_UNITS, type AdminDesignation, type CollegeUnit } from '@/lib/college-units';
 
 export default function AdminRegister() {
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [adminSecret, setAdminSecret] = useState('');
+  const [collegeUnit, setCollegeUnit] = useState<CollegeUnit | ''>('');
+  const [adminDesignation, setAdminDesignation] = useState<AdminDesignation | ''>('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
@@ -33,13 +39,23 @@ export default function AdminRegister() {
       return;
     }
 
-    if (!username || !fullName || !password || !confirmPassword || !adminSecret) {
+    if (!username || !fullName || !email || !phone || !password || !confirmPassword || !adminSecret || !collegeUnit || !adminDesignation) {
       toast.error('Please fill in all fields');
       return;
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       toast.error('Username can only contain letters, numbers, and underscores');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      toast.error('Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -58,12 +74,13 @@ export default function AdminRegister() {
       username,
       password,
       fullName,
-      '',
-      '',
+      phone,
+      email,
       '',
       '',
       adminSecret,
-      'principal'
+      'admin',
+      { collegeUnit: collegeUnit as CollegeUnit, adminDesignation: adminDesignation as AdminDesignation }
     );
     setLoading(false);
 
@@ -115,7 +132,7 @@ export default function AdminRegister() {
           <div>
             <CardTitle className="text-2xl font-playfair-display gradient-text">Principal / UH Registration</CardTitle>
             <CardDescription className="mt-2">
-              Register as Principal / UH. Director approval is required before login.
+              Register as unit Principal / UH. Director approval is required before login.
             </CardDescription>
           </div>
         </CardHeader>
@@ -123,7 +140,7 @@ export default function AdminRegister() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
-              Only approved Principal / UH accounts are allowed. After registration, a Director must approve this account.
+              Only one Principal and one UH are allowed per college unit. After registration, a Director must approve this account.
             </div>
 
             <div className="space-y-2">
@@ -150,6 +167,35 @@ export default function AdminRegister() {
                 disabled={loading}
                 className="px-3"
               />
+            </div>
+
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="official.email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  className="px-3"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="10-digit mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={loading}
+                  className="px-3"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -184,7 +230,38 @@ export default function AdminRegister() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="collegeUnit">College Unit</Label>
+                <Select value={collegeUnit} onValueChange={(value) => setCollegeUnit(value as CollegeUnit)} disabled={loading}>
+                  <SelectTrigger id="collegeUnit" className="px-3">
+                    <SelectValue placeholder="Select college unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLLEGE_UNITS.map((unit) => (
+                      <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adminDesignation">Designation</Label>
+                <Select value={adminDesignation} onValueChange={(value) => setAdminDesignation(value as AdminDesignation)} disabled={loading}>
+                  <SelectTrigger id="adminDesignation" className="px-3">
+                    <SelectValue placeholder="Principal or UH" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ADMIN_DESIGNATIONS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+<div className="space-y-2">
               <Label htmlFor="adminSecret">Management Secret Key</Label>
               <div className="relative">
                 <Input
