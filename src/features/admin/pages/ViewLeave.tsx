@@ -26,6 +26,7 @@ import {
   Filter,
 } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
+import { formatCollegeUnit } from '@/lib/college-units';
 
 const formatLeaveDuration = (app: LeaveApplication) => {
   if (app.leave_duration === 'half_day') {
@@ -58,7 +59,7 @@ export default function ViewLeave() {
   const canActOnApplication = (app: LeaveApplication) => {
     if (!canManageLeaveApplications || app.status !== 'pending') return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-    if (isPrincipal && !isDirectorView) return staffRole === 'staff';
+    if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
     return false;
   };
@@ -81,13 +82,13 @@ export default function ViewLeave() {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
     if (isDirectorView) {
-      // Director sees Principal leaves plus staff leave requests escalated after 24 hours without Principal action.
-      return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
+      // Director and Viewer can see all leave applications across Junior, Senior, and Pharmacy.
+      return true;
     }
 
     if (isPrincipal && !isViewer) {
-      // Principal manages only staff leave applications.
-      return staffRole === 'staff';
+      // Principal/UH manages only staff leave applications from their own college unit.
+      return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     }
 
     return true;
