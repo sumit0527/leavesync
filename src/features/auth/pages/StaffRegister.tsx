@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { sendRegistrationReviewEmail } from '@/lib/email-notifications';
+import { COLLEGE_UNITS, type CollegeUnit } from '@/lib/college-units';
 
 export default function StaffRegister() {
   const [username, setUsername] = useState('');
@@ -22,6 +23,7 @@ export default function StaffRegister() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [collegeUnit, setCollegeUnit] = useState<CollegeUnit | ''>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -39,7 +41,7 @@ export default function StaffRegister() {
       return;
     }
 
-    if (!username || !fullName || !email || !phone || !address || !departmentId || !password || !confirmPassword) {
+    if (!username || !fullName || !email || !phone || !address || !departmentId || !collegeUnit || !password || !confirmPassword) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -70,7 +72,7 @@ export default function StaffRegister() {
     }
 
     setLoading(true);
-    const { error } = await signUpWithUsername(username, password, fullName, phone, email, address, departmentId);
+    const { error } = await signUpWithUsername(username, password, fullName, phone, email, address, departmentId, undefined, undefined, { collegeUnit: collegeUnit as CollegeUnit });
     setLoading(false);
 
     if (error) {
@@ -198,6 +200,20 @@ export default function StaffRegister() {
                 </SelectContent>
               </Select>
             </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="collegeUnit">College Unit *</Label>
+                <Select value={collegeUnit} onValueChange={(value) => setCollegeUnit(value as CollegeUnit)} disabled={loading}>
+                  <SelectTrigger id="collegeUnit" className="px-3">
+                    <SelectValue placeholder="Select Junior, Senior, or Pharmacy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLLEGE_UNITS.map((unit) => (
+                      <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
             <div className="space-y-2">
               <Label htmlFor="address">Address *</Label>
