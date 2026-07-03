@@ -14,6 +14,21 @@ function clean(value: unknown) {
   return text || '-';
 }
 
+function formatCollegeUnit(unit: unknown) {
+  const value = String(unit ?? '').toLowerCase();
+  if (value === 'junior') return 'Junior College';
+  if (value === 'senior') return 'Senior College';
+  if (value === 'pharmacy') return 'Pharmacy College';
+  return 'Unit Not Assigned';
+}
+
+function formatDesignation(value: unknown) {
+  const designation = String(value ?? '').toLowerCase();
+  if (designation === 'uh') return 'UH';
+  if (designation === 'principal') return 'Principal';
+  return 'Principal / UH';
+}
+
 async function sendEmail(supabaseAdmin: ReturnType<typeof createClient>, params: {
   to: string;
   subject: string;
@@ -98,7 +113,7 @@ Deno.serve(async (req) => {
   try {
     const { data: applicant, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, username, full_name, email, phone, role, approval_status, approved_at')
+      .select('id, username, full_name, email, phone, role, approval_status, approved_at, college_unit, admin_designation')
       .eq('id', body.applicantProfileId)
       .maybeSingle();
 
@@ -111,7 +126,7 @@ Deno.serve(async (req) => {
     const isApproved = body.status === 'approved';
     const isPrincipal = ['principal', 'admin'].includes(applicant.role);
     const isDirector = ['director', 'main_admin'].includes(applicant.role);
-    const applicantRoleLabel = isPrincipal ? 'Principal / UH' : isDirector ? 'Director' : 'Staff';
+    const applicantRoleLabel = isPrincipal ? `${formatCollegeUnit((applicant as any).college_unit)} ${formatDesignation((applicant as any).admin_designation)}` : isDirector ? 'Director' : 'Staff';
     const reviewerRoleLabel = body.reviewerRoleLabel ?? (isPrincipal ? 'Director' : 'Principal / UH');
     const reviewerName = clean(body.reviewerName);
     const reviewerDisplay = reviewerName !== '-' ? `${reviewerName} (${reviewerRoleLabel})` : reviewerRoleLabel;
@@ -130,6 +145,7 @@ Deno.serve(async (req) => {
         { label: 'Name', value: applicant.full_name },
         { label: 'Username', value: applicant.username },
         { label: 'Role', value: applicantRoleLabel },
+        { label: 'College Unit', value: formatCollegeUnit((applicant as any).college_unit) },
         { label: 'Status', value: isApproved ? 'Approved' : 'Rejected' },
         { label: 'Reviewed By', value: reviewerDisplay },
         { label: 'Reviewed On', value: applicant.approved_at ? new Date(applicant.approved_at).toLocaleString('en-IN') : new Date().toLocaleString('en-IN') },
