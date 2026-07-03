@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/db/supabase';
 import { useHolidays } from '@/hooks/use-holidays';
 import { useLeaveTypes } from '@/hooks/use-leave-types';
+import { useLeaveAllocations } from '@/hooks/use-leave-allocations';
 import { format } from 'date-fns';
 import { CalendarIcon, Loader2, AlertCircle, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ export default function ApplyLeave() {
   const navigate = useNavigate();
   const { isValidLeaveDate } = useHolidays();
   const { leaveTypes } = useLeaveTypes();
+  const { allocations, refetch: refetchAllocations } = useLeaveAllocations(profile?.id);
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [leaveTypeId, setLeaveTypeId] = useState('');
@@ -49,10 +51,16 @@ export default function ApplyLeave() {
   }, []);
 
   useEffect(() => {
-    if (leaveTypeId && profile?.id) {
-      fetchLeaveBalance();
+    if (!leaveTypeId || !profile?.id) return;
+
+    const loadedBalance = getBalanceFromLoadedAllocations();
+    if (loadedBalance !== null) {
+      setAvailableBalance(loadedBalance);
+      return;
     }
-  }, [leaveTypeId, profile?.id]);
+
+    fetchLeaveBalance();
+  }, [leaveTypeId, profile?.id, allocations]);
 
   useEffect(() => {
     if (leaveTypeId) {
@@ -66,6 +74,20 @@ export default function ApplyLeave() {
       setEndDate(startDate);
     }
   }, [leaveDuration, startDate]);
+
+
+  const getBalanceFromLoadedAllocations = (): number | null => {
+    if (!leaveTypeId) return null;
+
+    const allocation = allocations.find((item) => item.leave_type_id === leaveTypeId);
+    if (!allocation) return null;
+
+    const balance = Number(
+      allocation.remaining ?? ((allocation.total_allocated ?? 0) - (allocation.used ?? 0)) ?? 0
+    );
+
+    return Math.max(0, balance);
+  };
 
   const fetchDirectorEmails = async () => {
     try {
@@ -90,12 +112,49 @@ export default function ApplyLeave() {
   const ensureAndFetchLeaveBalance = async (showError = false): Promise<number> => {
     if (!profile?.id || !leaveTypeId) return 0;
 
+    // Strongest path first: use the same allocation rows already loaded by the portal.
+    // This fixes the issue where allocations are visible elsewhere, but Apply Leave still shows 0.
+    const loadedBalance = getBalanceFromLoadedAllocations();
+    if (loadedBalance !== null) {
+      setAvailableBalance(loadedBalance);
+      return loadedBalance;
+    }
+
     const currentYear = new Date().getFullYear();
 
     try {
-      // Final safe path: this SECURITY DEFINER RPC bypasses staff RLS problems,
-      // creates the missing allocation row for the selected leave type if needed,
-      // and returns the exact current-year balance.
+      // Create missing allocation rows if this user was approved before allocations existed.
+      const { error: initError } = await supabase.rpc('initialize_staff_leave_allocations', {
+        staff_id_param: profile.id,
+      });
+      if (initError) console.error('Failed to initialize allocations before balance check:', initError);
+
+      // Refetch the shared allocation hook data.
+      await refetchAllocations();
+
+      // Direct table check after initialization. This matches the allocation list used by the rest of the portal.
+      const { data: directRows, error: directError } = await supabase
+        .from('staff_leave_allocations')
+        .select('id,total_allocated,used,remaining,leave_type_id,year')
+        .eq('staff_id', profile.id)
+        .eq('leave_type_id', leaveTypeId)
+        .eq('year', currentYear)
+        .limit(1);
+
+      if (directError) throw directError;
+
+      const directAllocation = Array.isArray(directRows) ? directRows[0] : directRows;
+      if (directAllocation) {
+        const balance = Number(
+          directAllocation.remaining ??
+          ((directAllocation.total_allocated ?? 0) - (directAllocation.used ?? 0)) ??
+          0
+        );
+        setAvailableBalance(Math.max(0, balance));
+        return Math.max(0, balance);
+      }
+
+      // Final fallback: SECURITY DEFINER RPC, if it exists in the DB.
       const { data, error } = await supabase.rpc('get_staff_leave_balance_for_type', {
         p_staff_id: profile.id,
         p_leave_type_id: leaveTypeId,
@@ -104,51 +163,30 @@ export default function ApplyLeave() {
 
       if (error) throw error;
 
-      const allocation = Array.isArray(data) ? data[0] : data;
-      const balance = Number(
-        allocation?.remaining ?? ((allocation?.total_allocated ?? 0) - (allocation?.used ?? 0)) ?? 0
-      );
+      // Support both possible RPC styles:
+      // 1) returns numeric balance
+      // 2) returns row/table with remaining,total_allocated,used
+      let balance = 0;
+      if (typeof data === 'number') {
+        balance = data;
+      } else {
+        const allocation = Array.isArray(data) ? data[0] : data;
+        balance = Number(
+          allocation?.remaining ??
+          ((allocation?.total_allocated ?? 0) - (allocation?.used ?? 0)) ??
+          0
+        );
+      }
 
       setAvailableBalance(Math.max(0, balance));
-
-      if (!allocation && showError) {
+      return Math.max(0, balance);
+    } catch (error) {
+      console.error('Failed to fetch leave balance:', error);
+      if (showError) {
         toast.error('No leave allocation found for this leave type. Please contact admin.');
       }
-
-      return Math.max(0, balance);
-    } catch (rpcError) {
-      console.error('RPC leave balance check failed, trying direct fallback:', rpcError);
-
-      try {
-        // Fallback for local/dev DBs where the RPC was not deployed yet.
-        await supabase.rpc('initialize_staff_leave_allocations', { staff_id_param: profile.id });
-
-        const { data, error } = await supabase
-          .from('staff_leave_allocations')
-          .select('id,total_allocated,used,remaining')
-          .eq('staff_id', profile.id)
-          .eq('leave_type_id', leaveTypeId)
-          .eq('year', currentYear)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        const balance = Number(data?.remaining ?? ((data?.total_allocated ?? 0) - (data?.used ?? 0)) ?? 0);
-        setAvailableBalance(Math.max(0, balance));
-
-        if (!data && showError) {
-          toast.error('No leave allocation found for this leave type. Please contact admin.');
-        }
-
-        return Math.max(0, balance);
-      } catch (fallbackError) {
-        console.error('Failed to fetch leave balance:', fallbackError);
-        if (showError) toast.error('Failed to fetch leave balance. Please try again.');
-        setAvailableBalance(0);
-        return 0;
-      }
+      setAvailableBalance(0);
+      return 0;
     }
   };
 
