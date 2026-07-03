@@ -25,6 +25,21 @@ function clean(value: unknown) {
   return text || '-';
 }
 
+function formatCollegeUnit(unit: unknown) {
+  const value = String(unit ?? '').toLowerCase();
+  if (value === 'junior') return 'Junior College';
+  if (value === 'senior') return 'Senior College';
+  if (value === 'pharmacy') return 'Pharmacy College';
+  return 'Unit Not Assigned';
+}
+
+function formatDesignation(value: unknown) {
+  const designation = String(value ?? '').toLowerCase();
+  if (designation === 'uh') return 'UH';
+  if (designation === 'principal') return 'Principal';
+  return 'Principal / UH';
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return '-';
   return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
@@ -171,6 +186,8 @@ Deno.serve(async (req) => {
           email,
           phone,
           role,
+          college_unit,
+          admin_designation,
           department:departments(name)
         ),
         leave_type:leave_types(name)
@@ -185,15 +202,25 @@ Deno.serve(async (req) => {
     const staffRole = String(staff?.role ?? '').toLowerCase();
     const isPrincipalLeave = ['principal', 'admin'].includes(staffRole);
     const reviewerRoles = isPrincipalLeave ? ['director', 'main_admin'] : ['principal', 'admin'];
-    const reviewerRoleLabel = isPrincipalLeave ? 'Director' : 'Principal / UH';
-    const applicantRoleLabel = isPrincipalLeave ? 'Principal / UH' : 'Staff';
+    const reviewerRoleLabel = isPrincipalLeave ? 'Director' : `${formatCollegeUnit(staff?.college_unit)} Principal / UH`;
+    const applicantRoleLabel = isPrincipalLeave
+      ? `${formatCollegeUnit(staff?.college_unit)} ${formatDesignation(staff?.admin_designation)}`
+      : 'Staff';
 
-    const { data: reviewers, error: reviewersError } = await supabaseAdmin
+    let reviewersQuery = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, username, email, role')
+      .select('id, full_name, username, email, role, college_unit, admin_designation')
       .in('role', reviewerRoles)
       .eq('approval_status', 'approved')
       .not('email', 'is', null);
+
+    // Staff leave requests only go to Principal/UH of the same college unit.
+    // Principal/UH leave requests go to all Directors.
+    if (!isPrincipalLeave) {
+      reviewersQuery = reviewersQuery.eq('college_unit', staff?.college_unit);
+    }
+
+    const { data: reviewers, error: reviewersError } = await reviewersQuery;
 
     if (reviewersError) throw reviewersError;
 
@@ -203,8 +230,8 @@ Deno.serve(async (req) => {
     }
 
     const subject = isPrincipalLeave
-      ? `New Principal / UH Leave Request — ${clean(staff?.full_name)}`
-      : `New Staff Leave Request — ${clean(staff?.full_name)}`;
+      ? `New ${formatCollegeUnit(staff?.college_unit)} ${formatDesignation(staff?.admin_designation)} Leave Request — ${clean(staff?.full_name)}`
+      : `New ${formatCollegeUnit(staff?.college_unit)} Staff Leave Request — ${clean(staff?.full_name)}`;
 
     const sentTo: string[] = [];
     const failed: string[] = [];
@@ -232,6 +259,8 @@ Deno.serve(async (req) => {
             { label: 'Applicant Name', value: staff?.full_name },
             { label: 'Username', value: staff?.username },
             { label: 'Role', value: applicantRoleLabel },
+            { label: 'College Unit', value: formatCollegeUnit(staff?.college_unit) },
+            { label: 'Designation', value: isPrincipalLeave ? formatDesignation(staff?.admin_designation) : 'Staff' },
             { label: 'Department', value: staff?.department?.name ?? 'N/A' },
             { label: 'Leave Type', value: (application as any).leave_type?.name },
             { label: 'Start Date', value: formatDate(application.start_date) },
@@ -255,6 +284,8 @@ Deno.serve(async (req) => {
           applicantRole: staffRole,
           reviewerRole: reviewerRoleLabel,
           reviewerId: reviewer.id,
+          collegeUnit: staff?.college_unit,
+          adminDesignation: staff?.admin_designation,
         });
         sentTo.push(reviewer.email);
       } catch (error) {
