@@ -6,6 +6,8 @@ export interface Option {
 }
 
 export type UserRole = 'staff' | 'admin' | 'principal' | 'main_admin' | 'director' | 'viewer';
+export type CollegeUnit = 'junior' | 'senior' | 'pharmacy';
+export type AdminDesignation = 'principal' | 'uh';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type EmploymentStatus = 'active' | 'past';
@@ -57,6 +59,8 @@ export interface Profile {
   approved_at: string | null;
   leave_balance: number;
   employment_status?: EmploymentStatus;
+  college_unit?: CollegeUnit | null;
+  admin_designation?: AdminDesignation | null;
   exited_at?: string | null;
   exited_by?: string | null;
   created_at: string;
