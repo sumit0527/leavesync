@@ -3,12 +3,14 @@ import AdminLayout from '@/components/layouts/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, Users, UserX, RotateCcw } from 'lucide-react';
 import type { Profile } from '@/types';
 import { sendRegistrationDecisionEmail } from '@/lib/email-notifications';
+import { ADMIN_DESIGNATIONS, COLLEGE_UNITS, formatAdminDesignation, formatCollegeUnit, type AdminDesignation, type CollegeUnit } from '@/lib/college-units';
 
 type EmployeeRecord = Profile & {
   employment_status?: 'active' | 'past';
@@ -25,14 +27,14 @@ export default function EmployeeApproval() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const isViewingPrincipals = isMainAdmin || isViewer;
   const isDirectorManagingPrincipals = isMainAdmin;
-  const managedRoleLabel = isViewingPrincipals ? 'Principal' : 'Staff';
-  const managedRoleLabelPlural = isViewingPrincipals ? 'Principals' : 'Employees';
+  const managedRoleLabel = isViewingPrincipals ? 'Employee / Principal' : 'Staff';
+  const managedRoleLabelPlural = isViewingPrincipals ? 'Employees / Principals' : 'Employees';
   const canApproveAccounts = (isPrincipal || isMainAdmin) && !isViewer;
   const canMovePastEmployees = isMainAdmin && !isViewer;
 
   useEffect(() => {
     fetchEmployees();
-  }, [isMainAdmin, isViewer]);
+  }, [isMainAdmin, isViewer, profile?.college_unit]);
 
   const fetchEmployees = async () => {
     try {
@@ -42,15 +44,12 @@ export default function EmployeeApproval() {
         .select('*, department:departments(*)')
         .order('created_at', { ascending: false });
 
-      if (isMainAdmin) {
-        // Director verifies Principal registrations. Legacy role 'admin' is treated as Principal.
-        query = query.in('role', ['principal', 'admin']);
-      } else if (isViewer) {
-        // Viewer Employee Management should show Principal information only in read-only mode.
-        query = query.in('role', ['principal', 'admin']);
+      if (isMainAdmin || isViewer) {
+        // Director and Viewer can see all staff plus Principal/UH records across Junior, Senior, and Pharmacy.
+        query = query.in('role', ['staff', 'principal', 'admin']);
       } else {
-        // Principal sees staff records here.
-        query = query.eq('role', 'staff');
+        // Principal/UH sees only staff records from their own college unit.
+        query = query.eq('role', 'staff').eq('college_unit', (profile as any)?.college_unit);
       }
 
       const { data, error } = await query;
@@ -102,11 +101,14 @@ export default function EmployeeApproval() {
 
       if (updateError) throw updateError;
 
-      const { error: allocError } = await supabase.rpc('initialize_staff_leave_allocations', {
-        staff_id_param: employeeId,
-      });
+      const approvedEmployee = employees.find((employee) => employee.id === employeeId);
+      if (approvedEmployee?.role === 'staff') {
+        const { error: allocError } = await supabase.rpc('initialize_staff_leave_allocations', {
+          staff_id_param: employeeId,
+        });
 
-      if (allocError) console.error('Failed to initialize leave allocations:', allocError);
+        if (allocError) console.error('Failed to initialize leave allocations:', allocError);
+      }
 
       await supabase.from('notifications').insert({
         user_id: employeeId,
@@ -167,6 +169,48 @@ export default function EmployeeApproval() {
     } catch (err) {
       console.error('Failed to reject employee:', err);
       toast.error(`Failed to reject ${managedRoleLabel.toLowerCase()}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUpdateCollegeUnit = async (employeeId: string, collegeUnit: CollegeUnit) => {
+    if (!isMainAdmin || isViewer) return;
+
+    setProcessingId(employeeId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ college_unit: collegeUnit, updated_at: new Date().toISOString() })
+        .eq('id', employeeId);
+
+      if (error) throw error;
+      toast.success('College unit updated');
+      fetchEmployees();
+    } catch (err) {
+      console.error('Failed to update college unit:', err);
+      toast.error('Failed to update college unit');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUpdateDesignation = async (employeeId: string, adminDesignation: AdminDesignation) => {
+    if (!isMainAdmin || isViewer) return;
+
+    setProcessingId(employeeId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ admin_designation: adminDesignation, updated_at: new Date().toISOString() })
+        .eq('id', employeeId);
+
+      if (error) throw error;
+      toast.success('Designation updated');
+      fetchEmployees();
+    } catch (err) {
+      console.error('Failed to update designation:', err);
+      toast.error('Failed to update designation');
     } finally {
       setProcessingId(null);
     }
@@ -255,12 +299,24 @@ export default function EmployeeApproval() {
   const visibleEmployees = activeTab === 'current' ? currentEmployees : pastEmployees;
   const pendingCount = currentEmployees.filter(e => e.approval_status === 'pending').length;
 
+  const canApproveEmployee = (employee: EmployeeRecord) => {
+    if (!canApproveAccounts) return false;
+    if (isPrincipal && !isMainAdmin && !isViewer) {
+      return employee.role === 'staff' && (employee as any).college_unit === (profile as any)?.college_unit;
+    }
+    if (isMainAdmin && !isViewer) {
+      // Director approves only Principal/UH registrations. Staff approval stays with the unit Principal/UH.
+      return ['admin', 'principal'].includes(String(employee.role));
+    }
+    return false;
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isViewingPrincipals ? 'Principal Information' : 'Employee Management'}</h1>
-          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review Principal registrations. Only Director can approve or reject Principal accounts.' : isViewer ? `${portalRoleLabel} can view Principal information and download records. Approval and modification actions are hidden.` : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view records only.`}</p>
+          <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review and manage staff plus Principal/UH records across Junior, Senior, and Pharmacy.' : isViewer ? `${portalRoleLabel} can view all staff and Principal/UH information and download records. Approval and modification actions are hidden.` : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view records only.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -308,7 +364,7 @@ export default function EmployeeApproval() {
                   <Users className="h-5 w-5" />
                   {isViewingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
-                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject Principal registrations. Maximum two approved Principals are allowed.' : isViewer ? 'Read-only Principal information. No approval or modification actions available.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only records. No approval or modification actions available.'}</CardDescription>
+                <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject unit Principal/UH registrations and records. One Principal and one UH are allowed per unit.' : isViewer ? 'Read-only Principal information. No approval or modification actions available.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
@@ -335,6 +391,8 @@ export default function EmployeeApproval() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-3 whitespace-nowrap">Name</th>
+                      <th className="text-left p-3 whitespace-nowrap">Role</th>
+                      <th className="text-left p-3 whitespace-nowrap">College Unit</th>
                       {!isViewingPrincipals && <th className="text-left p-3 whitespace-nowrap">Department</th>}
                       <th className="text-left p-3 whitespace-nowrap">Email</th>
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
@@ -352,6 +410,48 @@ export default function EmployeeApproval() {
                             <p className="font-medium">{employee.full_name}</p>
                             <p className="text-xs text-muted-foreground">@{employee.username}</p>
                           </div>
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          {employee.role === 'staff' ? (
+                            'Staff'
+                          ) : isMainAdmin && !isViewer ? (
+                            <Select
+                              value={(employee as any).admin_designation || ''}
+                              onValueChange={(value) => handleUpdateDesignation(employee.id, value as AdminDesignation)}
+                              disabled={processingId === employee.id}
+                            >
+                              <SelectTrigger className="h-8 w-[140px]">
+                                <SelectValue placeholder="Set role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ADMIN_DESIGNATIONS.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            formatAdminDesignation((employee as any).admin_designation)
+                          )}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          {isMainAdmin && !isViewer ? (
+                            <Select
+                              value={(employee as any).college_unit || ''}
+                              onValueChange={(value) => handleUpdateCollegeUnit(employee.id, value as CollegeUnit)}
+                              disabled={processingId === employee.id}
+                            >
+                              <SelectTrigger className="h-8 w-[170px]">
+                                <SelectValue placeholder="Assign unit" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COLLEGE_UNITS.map((unit) => (
+                                  <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            formatCollegeUnit((employee as any).college_unit)
+                          )}
                         </td>
                         {!isViewingPrincipals && (
                           <td className="p-3 whitespace-nowrap">{employee.department?.name || 'No department selected'}</td>
@@ -379,7 +479,7 @@ export default function EmployeeApproval() {
                               Restore
                             </Button>
                             ) : <span className="text-xs text-muted-foreground">Past record</span>
-                          ) : employee.approval_status === 'pending' ? (
+                          ) : employee.approval_status === 'pending' && canApproveEmployee(employee) ? (
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
@@ -405,6 +505,8 @@ export default function EmployeeApproval() {
                                 Reject
                               </Button>
                             </div>
+                          ) : employee.approval_status === 'pending' ? (
+                            <span className="text-xs text-muted-foreground">Assign unit; approval by unit Principal/UH</span>
                           ) : canMovePastEmployees ? (
                             <Button
                               size="sm"
