@@ -56,7 +56,7 @@ export default function PendingApplications() {
   const canActOnApplication = (app: LeaveApplication) => {
     if (!canManageLeaveApplications || app.status !== 'pending') return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-    if (isPrincipal && !isDirectorView) return staffRole === 'staff';
+    if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
     return false;
   };
@@ -64,8 +64,8 @@ export default function PendingApplications() {
   const pendingApplications = applications
     .filter(app => {
       const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-      if (isDirectorView) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
-      if (isPrincipal && !isViewer) return staffRole === 'staff';
+      if (isDirectorView) return true;
+      if (isPrincipal && !isViewer) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
       return false;
     })
     .filter(app => app.status === 'pending')
