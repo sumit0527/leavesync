@@ -92,38 +92,19 @@ export default function ApplyLeave() {
 
     const currentYear = new Date().getFullYear();
 
-    const readBalance = async () => {
-      const { data, error } = await supabase
-        .from('staff_leave_allocations')
-        .select('id,total_allocated,used,remaining')
-        .eq('staff_id', profile.id)
-        .eq('leave_type_id', leaveTypeId)
-        .eq('year', currentYear)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    try {
+      // Final safe path: this SECURITY DEFINER RPC bypasses staff RLS problems,
+      // creates the missing allocation row for the selected leave type if needed,
+      // and returns the exact current-year balance.
+      const { data, error } = await supabase.rpc('get_staff_leave_balance_for_type', {
+        p_staff_id: profile.id,
+        p_leave_type_id: leaveTypeId,
+        p_year: currentYear,
+      });
 
       if (error) throw error;
-      return data;
-    };
 
-    try {
-      let allocation = await readBalance();
-
-      // Safety net: if approval happened before allocations were created,
-      // initialize them now and read again.
-      if (!allocation) {
-        const { error: initError } = await supabase.rpc('initialize_staff_leave_allocations', {
-          staff_id_param: profile.id,
-        });
-
-        if (initError) {
-          console.error('Failed to initialize leave allocations:', initError);
-        }
-
-        allocation = await readBalance();
-      }
-
+      const allocation = Array.isArray(data) ? data[0] : data;
       const balance = Number(
         allocation?.remaining ?? ((allocation?.total_allocated ?? 0) - (allocation?.used ?? 0)) ?? 0
       );
@@ -131,15 +112,43 @@ export default function ApplyLeave() {
       setAvailableBalance(Math.max(0, balance));
 
       if (!allocation && showError) {
-        toast.error('No leave allocation found. Please contact admin.');
+        toast.error('No leave allocation found for this leave type. Please contact admin.');
       }
 
       return Math.max(0, balance);
-    } catch (error) {
-      console.error('Failed to fetch leave balance:', error);
-      if (showError) toast.error('Failed to fetch leave balance. Please try again.');
-      setAvailableBalance(0);
-      return 0;
+    } catch (rpcError) {
+      console.error('RPC leave balance check failed, trying direct fallback:', rpcError);
+
+      try {
+        // Fallback for local/dev DBs where the RPC was not deployed yet.
+        await supabase.rpc('initialize_staff_leave_allocations', { staff_id_param: profile.id });
+
+        const { data, error } = await supabase
+          .from('staff_leave_allocations')
+          .select('id,total_allocated,used,remaining')
+          .eq('staff_id', profile.id)
+          .eq('leave_type_id', leaveTypeId)
+          .eq('year', currentYear)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const balance = Number(data?.remaining ?? ((data?.total_allocated ?? 0) - (data?.used ?? 0)) ?? 0);
+        setAvailableBalance(Math.max(0, balance));
+
+        if (!data && showError) {
+          toast.error('No leave allocation found for this leave type. Please contact admin.');
+        }
+
+        return Math.max(0, balance);
+      } catch (fallbackError) {
+        console.error('Failed to fetch leave balance:', fallbackError);
+        if (showError) toast.error('Failed to fetch leave balance. Please try again.');
+        setAvailableBalance(0);
+        return 0;
+      }
     }
   };
 
