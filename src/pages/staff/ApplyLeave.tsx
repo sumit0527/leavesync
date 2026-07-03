@@ -42,11 +42,11 @@ export default function ApplyLeave() {
   const [availableBalance, setAvailableBalance] = useState<number>(0);
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [balanceDialogMessage, setBalanceDialogMessage] = useState('');
-  const [adminEmail, setAdminEmail] = useState('');
+  const [directorEmails, setDirectorEmails] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchPrincipalEmail();
-  }, [isPrincipal]);
+    fetchDirectorEmails();
+  }, []);
 
   useEffect(() => {
     if (leaveTypeId && profile?.id) {
@@ -67,33 +67,22 @@ export default function ApplyLeave() {
     }
   }, [leaveDuration, startDate]);
 
-  const fetchPrincipalEmail = async () => {
-    const targetRoles = isPrincipal ? ['director', 'main_admin'] : ['principal', 'admin'];
-    const fallbackKey = isPrincipal ? 'director_email' : 'admin_email';
-
-    const { data: approver } = await supabase
+  const fetchDirectorEmails = async () => {
+    const { data: directors, error } = await supabase
       .from('profiles')
       .select('email')
-      .in('role', targetRoles)
+      .in('role', ['main_admin', 'director'])
       .eq('approval_status', 'approved')
       .not('email', 'is', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: true });
 
-    if (approver?.email) {
-      setAdminEmail(approver.email);
+    if (error) {
+      console.error('Failed to fetch director emails:', error);
       return;
     }
 
-    const { data } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', fallbackKey)
-      .maybeSingle();
-    if (data?.value) {
-      setAdminEmail(data.value);
-    }
+    const emails = Array.from(new Set((directors ?? []).map((director) => director.email).filter(Boolean))) as string[];
+    setDirectorEmails(emails);
   };
 
   const fetchLeaveBalance = async () => {
@@ -155,14 +144,34 @@ export default function ApplyLeave() {
     }
   };
 
-  const openExtraLeaveEmail = () => {
-    const to = adminEmail || (isPrincipal ? 'director@example.com' : 'principal@example.com');
-    const approvalRoleLabel = isPrincipal ? 'Director' : 'Principal';
-    const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`);
+  const getExtraLeaveMailtoHref = () => {
+    const to = directorEmails.join(',');
+    const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal / UH' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`);
     const body = encodeURIComponent(
-      `${`Dear ${approvalRoleLabel},`}\n\nI request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.\n\n${isPrincipal ? 'Principal Details' : 'Staff Details'}:\nName: ${profile?.full_name ?? ''}\nUsername: ${profile?.username ?? ''}\nPhone: ${profile?.phone ?? ''}\nDepartment: ${profile?.department?.name ?? 'N/A'}\n\nRequested Leave Details:\nLeave Type: ${selectedLeaveType?.name ?? 'N/A'}\nRequested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}\nDuration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}\nAvailable Balance: ${availableBalance} day(s)\n\nReason:\n${reason.trim() || 'Please type your detailed reason here.'}\n\nRegards,\n${profile?.full_name ?? ''}`
+      `Dear Director,
+
+I request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.
+
+${isPrincipal ? 'Principal / UH Details' : 'Staff Details'}:
+Name: ${profile?.full_name ?? ''}
+Username: ${profile?.username ?? ''}
+Phone: ${profile?.phone ?? ''}
+Department: ${profile?.department?.name ?? 'N/A'}
+College Unit: ${profile?.college_unit ?? 'N/A'}
+
+Requested Leave Details:
+Leave Type: ${selectedLeaveType?.name ?? 'N/A'}
+Requested Date(s): ${startDate ? format(startDate, 'dd/MM/yyyy') : 'N/A'}${endDate ? ` to ${format(endDate, 'dd/MM/yyyy')}` : ''}
+Duration: ${leaveDuration === 'half_day' ? `Half Day (${halfDayPeriod === 'first_half' ? 'First Half' : 'Second Half'})` : 'Full Day'}
+Available Balance: ${availableBalance} day(s)
+
+Reason:
+${reason.trim() || 'Please type your detailed reason here.'}
+
+Regards,
+${profile?.full_name ?? ''}`
     );
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+    return `mailto:${to}?subject=${subject}&body=${body}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -444,13 +453,17 @@ export default function ApplyLeave() {
             <DialogDescription>{balanceDialogMessage}</DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-            {isPrincipal ? 'If this leave is urgent, you can request extra approval by sending an email to the Director with your reason and supporting details.' : 'If this leave is urgent, you can request extra approval by sending an email to the Principal with your reason and supporting details.'}
+            If this leave is urgent, you can request extra approval by sending an email to the Directors with your reason and supporting details.
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>Close</Button>
-            <Button onClick={openExtraLeaveEmail}>
-              <Mail className="mr-2 h-4 w-4" />
-              Request Extra Leave Approval
+            <Button asChild disabled={directorEmails.length === 0}>
+              <a href={getExtraLeaveMailtoHref()} onClick={() => {
+                if (directorEmails.length === 0) toast.error('No approved Director email found');
+              }}>
+                <Mail className="mr-2 h-4 w-4" />
+                Request Extra Leave Approval
+              </a>
             </Button>
           </DialogFooter>
         </DialogContent>
