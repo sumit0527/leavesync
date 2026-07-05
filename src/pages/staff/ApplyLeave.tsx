@@ -44,11 +44,11 @@ export default function ApplyLeave() {
   const [availableBalance, setAvailableBalance] = useState<number>(0);
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [balanceDialogMessage, setBalanceDialogMessage] = useState('');
-  const [directorEmails, setDirectorEmails] = useState<string[]>([]);
+  const [extraLeaveRecipientEmails, setExtraLeaveRecipientEmails] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchDirectorEmails();
-  }, []);
+    fetchExtraLeaveRecipientEmails();
+  }, [profile?.id, isPrincipal]);
 
   useEffect(() => {
     if (!leaveTypeId || !profile?.id) return;
@@ -89,23 +89,35 @@ export default function ApplyLeave() {
     return Math.max(0, balance);
   };
 
-  const fetchDirectorEmails = async () => {
+  const getExtraLeaveRecipientLabel = () => (isPrincipal ? 'Director' : 'Principal / UH');
+
+  const fetchExtraLeaveRecipientEmails = async (): Promise<string[]> => {
     try {
-      // Staff users normally cannot read Director profiles because of RLS.
-      // This SECURITY DEFINER RPC safely returns only approved Director email addresses.
-      const { data, error } = await supabase.rpc('get_approved_director_emails');
+      if (!profile?.id) {
+        setExtraLeaveRecipientEmails([]);
+        return [];
+      }
+
+      // Staff extra-leave requests go to their own unit Principal/UH.
+      // Principal/UH extra-leave requests go to all approved Directors.
+      // SECURITY DEFINER RPC avoids RLS issues while exposing only recipient emails.
+      const { data, error } = await supabase.rpc('get_extra_leave_recipient_emails', {
+        p_requester_id: profile.id,
+      });
 
       if (error) {
-        console.error('Failed to fetch director emails via RPC:', error);
-        setDirectorEmails([]);
-        return;
+        console.error('Failed to fetch extra leave recipient emails via RPC:', error);
+        setExtraLeaveRecipientEmails([]);
+        return [];
       }
 
       const emails = Array.from(new Set((Array.isArray(data) ? data : []).filter(Boolean))) as string[];
-      setDirectorEmails(emails);
+      setExtraLeaveRecipientEmails(emails);
+      return emails;
     } catch (error) {
-      console.error('Failed to fetch director emails:', error);
-      setDirectorEmails([]);
+      console.error('Failed to fetch extra leave recipient emails:', error);
+      setExtraLeaveRecipientEmails([]);
+      return [];
     }
   };
 
@@ -239,10 +251,10 @@ export default function ApplyLeave() {
     }
   };
 
-  const getExtraLeaveEmailDetails = () => {
-    const to = directorEmails.join(',');
+  const getExtraLeaveEmailDetails = (recipients = extraLeaveRecipientEmails) => {
+    const to = recipients.join(',');
     const subject = `Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal / UH' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`;
-    const body = `Dear Director,
+    const body = `Dear ${getExtraLeaveRecipientLabel()},
 
 I request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.
 
@@ -278,23 +290,44 @@ ${profile?.full_name ?? ''}`;
     };
   };
 
+  const isMobileDevice = () => {
+    if (typeof window === 'undefined') return false;
+    const userAgent = navigator.userAgent || '';
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+      || window.matchMedia('(max-width: 768px)').matches;
+  };
+
   const handleExtraLeaveEmailClick = async () => {
-    if (directorEmails.length === 0) {
-      await fetchDirectorEmails();
-      toast.error('No approved Director email found. Please check Director role, approval status, and email.');
+    let recipients = extraLeaveRecipientEmails;
+
+    if (recipients.length === 0) {
+      recipients = await fetchExtraLeaveRecipientEmails();
+    }
+
+    if (recipients.length === 0) {
+      toast.error(`No approved ${getExtraLeaveRecipientLabel()} email found for this request.`);
       return;
     }
 
-    const email = getExtraLeaveEmailDetails();
+    const email = getExtraLeaveEmailDetails(recipients);
 
     try {
-      await navigator.clipboard?.writeText(`To: ${email.to}\nSubject: ${email.subject}\n\n${email.body}`);
+      await navigator.clipboard?.writeText(`To: ${email.to}
+Subject: ${email.subject}
+
+${email.body}`);
     } catch {
       // Clipboard is only a helper. Do not block the email action if copying is unavailable.
     }
 
-    // Desktop browsers often do nothing with mailto: if no default mail app is configured.
-    // Gmail compose opens reliably in a new tab. If popups are blocked, fall back to mailto.
+    if (isMobileDevice()) {
+      // On phones, mailto opens the installed/default mail app such as Gmail.
+      window.location.href = email.mailtoHref;
+      toast.info('Opening your phone email app. Email details were also copied for backup.');
+      return;
+    }
+
+    // On desktop, many browsers have no default mail app configured, so Gmail web compose is more reliable.
     const composeWindow = window.open(email.gmailHref, '_blank', 'noopener,noreferrer');
 
     if (!composeWindow) {
@@ -575,7 +608,7 @@ ${profile?.full_name ?? ''}`;
             <p>• Leave cannot be applied on weekends or public holidays</p>
             <p>• Full day counts as 1 day and half day counts as 0.5 day</p>
             <p>• Only working days are counted in your leave balance</p>
-            <p>• You will receive a notification once your application is reviewed by the {isPrincipal ? 'Director' : 'Principal'}</p>
+            <p>• You will receive a notification once your application is reviewed by the {isPrincipal ? 'Director' : 'Principal / UH'}</p>
           </CardContent>
         </Card>
       </div>
@@ -587,13 +620,13 @@ ${profile?.full_name ?? ''}`;
             <DialogDescription>{balanceDialogMessage}</DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-            If this leave is urgent, you can request extra approval by sending an email to the Directors with your reason and supporting details.
+            If this leave is urgent, you can request extra approval by sending an email to the correct reviewer with your reason and supporting details.
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>Close</Button>
             <Button type="button" onClick={handleExtraLeaveEmailClick}>
               <Mail className="mr-2 h-4 w-4" />
-              {directorEmails.length > 0 ? 'Request Extra Leave Approval' : 'Check Director Email'}
+              {extraLeaveRecipientEmails.length > 0 ? 'Request Extra Leave Approval' : `Check ${getExtraLeaveRecipientLabel()} Email`}
             </Button>
           </DialogFooter>
         </DialogContent>
