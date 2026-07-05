@@ -22,11 +22,6 @@ export default function AdminDashboard() {
   const [departmentCount, setDepartmentCount] = useState(0);
   const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; role?: string; college_unit?: string | null; admin_designation?: string | null; department?: { name: string } }[]>([]);
 
-  const isEscalatedStaffLeave = (app: any) => {
-    const applicantRole = String(app?.staff?.role ?? '').toLowerCase();
-    if (app?.status !== 'pending' || applicantRole !== 'staff' || !app?.created_at) return false;
-    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
-  };
 
   const fetchCounts = useCallback(async () => {
     let empQuery = supabase
@@ -112,10 +107,10 @@ export default function AdminDashboard() {
   };
 
   const dashboardCards = [
-    { title: 'Pending Leaves', value: scopedStats.pending, note: isDirectorView ? 'Principal + escalated staff leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
+    { title: 'Pending Leaves', value: scopedStats.pending, note: isDirectorView ? 'Principal + staff leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
     { title: 'Total Employees', value: employeeCount, note: 'Active staff', icon: Users, accent: 'text-primary' },
     { title: 'Departments', value: departmentCount, note: 'Active departments', icon: Building2, accent: 'text-muted-foreground' },
-    { title: 'Total Applications', value: scopedStats.total, note: isDirectorView ? 'Principal + escalated staff leaves' : 'Staff leaves', icon: FileCheck, accent: 'text-muted-foreground' },
+    { title: 'Total Applications', value: scopedStats.total, note: isDirectorView ? 'Principal + staff leaves' : 'Staff leaves', icon: FileCheck, accent: 'text-muted-foreground' },
     { title: 'Approved', value: scopedStats.approved, note: 'Applications', icon: CheckCircle, accent: 'text-green-600' },
     { title: 'Rejected', value: scopedStats.rejected, note: 'Applications', icon: XCircle, accent: 'text-red-600' },
   ];
