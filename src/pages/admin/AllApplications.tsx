@@ -47,11 +47,6 @@ export default function AllApplications() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const isEscalatedStaffLeave = (app: any) => {
-    const staffRole = String(app?.staff?.role ?? '').toLowerCase();
-    if (app?.status !== 'pending' || staffRole !== 'staff' || !app?.created_at) return false;
-    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
-  };
 
   const visibleApplications = applications.filter(app => {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
@@ -145,7 +140,7 @@ export default function AllApplications() {
   const exportToPDF = () => {
     const rows = getReportRows();
     downloadTablePdf({
-      title: isDirectorView ? 'Principal and Escalated Staff Leave Applications Report' : 'All Leave Applications Report',
+      title: isDirectorView ? 'Principal / UH Leave Applications Report' : 'All Leave Applications Report',
       subtitle: `Filter: ${getFilterLabel()}`,
       headers: ['#', 'Applicant', 'Unit', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
       rows: rows.map((row) => [
