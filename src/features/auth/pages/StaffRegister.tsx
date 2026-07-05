@@ -31,6 +31,9 @@ export default function StaffRegister() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const { signUpWithUsername } = useAuth();
   const { departments, loading: deptLoading } = useDepartments();
+  const filteredDepartments = collegeUnit
+    ? departments.filter((dept) => !(dept as any).college_unit || (dept as any).college_unit === collegeUnit)
+    : departments;
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,7 +177,7 @@ export default function StaffRegister() {
 
             <div className="space-y-2">
               <Label htmlFor="department">Department *</Label>
-              <Select value={departmentId} onValueChange={setDepartmentId} disabled={loading || deptLoading}>
+              <Select value={departmentId} onValueChange={setDepartmentId} disabled={loading || deptLoading || !collegeUnit}>
                 <SelectTrigger id="department" className="px-3">
                   {deptLoading ? (
                     <span className="flex items-center gap-2 text-muted-foreground">
@@ -182,16 +185,16 @@ export default function StaffRegister() {
                       Loading departments...
                     </span>
                   ) : (
-                    <SelectValue placeholder="Select your department" />
+                    <SelectValue placeholder={collegeUnit ? 'Select your department' : 'Select college unit first'} />
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  {departments.length === 0 ? (
+                  {filteredDepartments.length === 0 ? (
                     <div className="px-4 py-3 text-sm text-muted-foreground">
                       No departments available
                     </div>
                   ) : (
-                    departments.map((dept) => (
+                    filteredDepartments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
                       </SelectItem>
@@ -203,7 +206,7 @@ export default function StaffRegister() {
 
               <div className="space-y-2">
                 <Label htmlFor="collegeUnit">College Unit *</Label>
-                <Select value={collegeUnit} onValueChange={(value) => setCollegeUnit(value as CollegeUnit)} disabled={loading}>
+                <Select value={collegeUnit} onValueChange={(value) => { setCollegeUnit(value as CollegeUnit); setDepartmentId(''); }} disabled={loading}>
                   <SelectTrigger id="collegeUnit" className="px-3">
                     <SelectValue placeholder="Select Junior, Senior, or Pharmacy" />
                   </SelectTrigger>
