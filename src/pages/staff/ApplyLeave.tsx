@@ -239,11 +239,10 @@ export default function ApplyLeave() {
     }
   };
 
-  const getExtraLeaveMailtoHref = () => {
+  const getExtraLeaveEmailDetails = () => {
     const to = directorEmails.join(',');
-    const subject = encodeURIComponent(`Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal / UH' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`);
-    const body = encodeURIComponent(
-      `Dear Director,
+    const subject = `Extra Leave Request - ${profile?.full_name ?? (isPrincipal ? 'Principal / UH' : 'Staff')} - ${selectedLeaveType?.name ?? 'Leave'}`;
+    const body = `Dear Director,
 
 I request extra approval for ${selectedLeaveType?.name ?? 'selected leave type'} because my leave allocation is over or insufficient.
 
@@ -264,9 +263,47 @@ Reason:
 ${reason.trim() || 'Please type your detailed reason here.'}
 
 Regards,
-${profile?.full_name ?? ''}`
-    );
-    return `mailto:${to}?subject=${subject}&body=${body}`;
+${profile?.full_name ?? ''}`;
+
+    const encodedTo = encodeURIComponent(to);
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+
+    return {
+      to,
+      subject,
+      body,
+      mailtoHref: `mailto:${to}?subject=${encodedSubject}&body=${encodedBody}`,
+      gmailHref: `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}&body=${encodedBody}`,
+    };
+  };
+
+  const handleExtraLeaveEmailClick = async () => {
+    if (directorEmails.length === 0) {
+      await fetchDirectorEmails();
+      toast.error('No approved Director email found. Please check Director role, approval status, and email.');
+      return;
+    }
+
+    const email = getExtraLeaveEmailDetails();
+
+    try {
+      await navigator.clipboard?.writeText(`To: ${email.to}\nSubject: ${email.subject}\n\n${email.body}`);
+    } catch {
+      // Clipboard is only a helper. Do not block the email action if copying is unavailable.
+    }
+
+    // Desktop browsers often do nothing with mailto: if no default mail app is configured.
+    // Gmail compose opens reliably in a new tab. If popups are blocked, fall back to mailto.
+    const composeWindow = window.open(email.gmailHref, '_blank', 'noopener,noreferrer');
+
+    if (!composeWindow) {
+      window.location.href = email.mailtoHref;
+      toast.info('Opening your email app. If it does not open, the email details were copied.');
+      return;
+    }
+
+    toast.success('Email draft opened. Details were also copied for backup.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -554,25 +591,10 @@ ${profile?.full_name ?? ''}`
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>Close</Button>
-            {directorEmails.length > 0 ? (
-              <Button asChild>
-                <a href={getExtraLeaveMailtoHref()}>
-                  <Mail className="mr-2 h-4 w-4" />
-                  Request Extra Leave Approval
-                </a>
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={async () => {
-                  await fetchDirectorEmails();
-                  toast.error('No approved Director email found. Please check Director role, approval status, and email.');
-                }}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Check Director Email
-              </Button>
-            )}
+            <Button type="button" onClick={handleExtraLeaveEmailClick}>
+              <Mail className="mr-2 h-4 w-4" />
+              {directorEmails.length > 0 ? 'Request Extra Leave Approval' : 'Check Director Email'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
