@@ -17,8 +17,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 export default function Departments() {
-  const { isViewer, isPrincipal } = useAuth();
+  const { profile, isViewer, isPrincipal, isMainAdmin } = useAuth();
   const isConfigReadOnly = isViewer || isPrincipal;
+  const principalUnit = (profile as any)?.college_unit as CollegeUnit | undefined;
+  const canChooseUnit = isMainAdmin || isViewer;
   const { departments, loading, refetch } = useDepartments();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -36,7 +38,7 @@ export default function Departments() {
     setEditingDept(null);
     setName('');
     setDescription('');
-    setUnit('senior');
+    setUnit(principalUnit || 'senior');
     setDialogOpen(true);
   };
 
@@ -153,23 +155,29 @@ export default function Departments() {
 
         <Card>
           <CardContent className="p-4">
-            <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
-              <div className="space-y-2">
-                <Label>College Unit Filter</Label>
-                <Select value={filterUnit} onValueChange={(value) => setFilterUnit(value as 'all' | CollegeUnit)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All units" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Units</SelectItem>
-                    {COLLEGE_UNITS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {canChooseUnit ? (
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
+                <div className="space-y-2">
+                  <Label>College Unit Filter</Label>
+                  <Select value={filterUnit} onValueChange={(value) => setFilterUnit(value as 'all' | CollegeUnit)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All units" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Units</SelectItem>
+                      {COLLEGE_UNITS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="self-end text-sm text-muted-foreground">Create departments under the correct unit so staff registration and reports stay clean.</p>
               </div>
-              <p className="self-end text-sm text-muted-foreground">Create departments under the correct unit so staff registration and reports stay clean.</p>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Showing departments for {formatCollegeUnit(principalUnit)} only.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -180,7 +188,7 @@ export default function Departments() {
               <p className="mt-4 text-muted-foreground">Loading departments...</p>
             </CardContent>
           </Card>
-        ) : departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit).length === 0 ? (
+        ) : departments.filter((dept) => canChooseUnit ? (filterUnit === 'all' || (dept as any).college_unit === filterUnit) : (dept as any).college_unit === principalUnit).length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -195,7 +203,7 @@ export default function Departments() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit).map((dept) => (
+            {departments.filter((dept) => canChooseUnit ? (filterUnit === 'all' || (dept as any).college_unit === filterUnit) : (dept as any).college_unit === principalUnit).map((dept) => (
               <Card key={dept.id} className="h-full flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -247,19 +255,21 @@ export default function Departments() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>College Unit *</Label>
-                <Select value={unit} onValueChange={(value) => setUnit(value as CollegeUnit)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select college unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLLEGE_UNITS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {canChooseUnit && (
+                <div className="space-y-2">
+                  <Label>College Unit *</Label>
+                  <Select value={unit} onValueChange={(value) => setUnit(value as CollegeUnit)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select college unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLLEGE_UNITS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name">Department Name *</Label>
                 <Input
