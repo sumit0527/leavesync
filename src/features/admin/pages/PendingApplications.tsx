@@ -17,6 +17,13 @@ import { format } from 'date-fns';
 import { CheckCircle, XCircle, FileText, Loader2, ExternalLink, Search, Sparkles } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
 
+
+const isStaffLeaveReadyForDirectorReview = (app: LeaveApplication | any) => {
+  const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
+  if (staffRole !== 'staff' || app?.status !== 'pending' || !app?.created_at) return false;
+  return new Date(app.created_at).getTime() <= Date.now() - 24 * 60 * 60 * 1000;
+};
+
 export default function PendingApplications() {
   const { profile, isPrincipal, isMainAdmin, isViewer } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
@@ -36,9 +43,12 @@ export default function PendingApplications() {
   const [filterLeaveType, setFilterLeaveType] = useState('all');
 
   const isDirectorView = isMainAdmin || isViewer;
+  const departmentOptions = isDirectorView
+    ? departments
+    : departments.filter((dept) => (dept as any).college_unit === (profile as any)?.college_unit);
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
   const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
-  const applicantRoleLabel = isDirectorView ? 'Principal / UH' : 'staff';
+  const applicantRoleLabel = isDirectorView ? 'Director-level' : 'staff';
 
 
   const getApplicantRoleLabel = (app?: LeaveApplication | null) => {
@@ -52,7 +62,7 @@ export default function PendingApplications() {
     if (!canManageLeaveApplications || app.status !== 'pending') return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
-    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin';
+    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isStaffLeaveReadyForDirectorReview(app);
     return false;
   };
 
@@ -157,7 +167,7 @@ export default function PendingApplications() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">Pending Applications</h1>
-          <p className="mt-2 text-muted-foreground">Review and process pending {applicantRoleLabel} leave requests</p>
+          <p className="mt-2 text-muted-foreground">Review and process pending {isDirectorView ? 'Director-level' : applicantRoleLabel} leave requests</p>
         </div>
 
         <Card>
@@ -188,7 +198,7 @@ export default function PendingApplications() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
+                    {departmentOptions.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
                       </SelectItem>
