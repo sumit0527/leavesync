@@ -21,6 +21,7 @@ import { useState } from 'react';
 
 import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 const formatLeaveDuration = (app: any) => {
   if (app.leave_duration === 'half_day') {
@@ -42,6 +43,7 @@ export default function AllApplications() {
   const [searchName, setSearchName] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterLeaveType, setFilterLeaveType] = useState('all');
+  const [filterUnit, setFilterUnit] = useState<'all' | CollegeUnit>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -69,6 +71,7 @@ export default function AllApplications() {
 
   const filteredApplications = visibleApplications.filter(app => {
     if (filter !== 'all' && app.status !== filter) return false;
+    if (filterUnit !== 'all' && (app.staff as any)?.college_unit !== filterUnit) return false;
     if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (filterDepartment !== 'all' && app.staff?.department_id !== filterDepartment) return false;
     if (filterLeaveType !== 'all' && app.leave_type_id !== filterLeaveType) return false;
@@ -105,6 +108,7 @@ export default function AllApplications() {
   const getFilterLabel = () => {
     const parts: string[] = [];
     if (filter !== 'all') parts.push(filter.charAt(0).toUpperCase() + filter.slice(1));
+    if (filterUnit !== 'all') parts.push(formatCollegeUnit(filterUnit));
     if (filterYear !== 'all') parts.push(filterYear);
     if (filterDepartment !== 'all') {
       const dept = departments.find(d => d.id === filterDepartment);
@@ -121,6 +125,7 @@ export default function AllApplications() {
   const getReportRows = () => filteredApplications.map((app, idx) => ({
     serial: idx + 1,
     staff_name: app.staff?.full_name || 'N/A',
+    unit: formatCollegeUnit((app.staff as any)?.college_unit),
     department: app.staff?.department?.name || 'N/A',
     leave_type: app.leave_type?.name || 'N/A',
     start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
@@ -142,10 +147,11 @@ export default function AllApplications() {
     downloadTablePdf({
       title: isDirectorView ? 'Principal and Escalated Staff Leave Applications Report' : 'All Leave Applications Report',
       subtitle: `Filter: ${getFilterLabel()}`,
-      headers: ['#', 'Applicant', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
+      headers: ['#', 'Applicant', 'Unit', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
       rows: rows.map((row) => [
         row.serial,
         row.staff_name,
+        row.unit,
         row.department,
         row.leave_type,
         row.start_date,
@@ -218,7 +224,7 @@ export default function AllApplications() {
             <CardDescription>Find specific applications</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-7">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="filterYear">Year</Label>
                 <Select value={filterYear} onValueChange={setFilterYear}>
@@ -233,6 +239,20 @@ export default function AllApplications() {
                   </SelectContent>
                 </Select>
               </div>
+              {isDirectorView && (
+                <div className="space-y-2">
+                  <Label htmlFor="filterUnit">College Unit</Label>
+                  <Select value={filterUnit} onValueChange={(value) => setFilterUnit(value as 'all' | CollegeUnit)}>
+                    <SelectTrigger id="filterUnit" className="px-3"><SelectValue placeholder="All units" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Units</SelectItem>
+                      {COLLEGE_UNITS.map((unit) => (
+                        <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="searchName">Employee Name</Label>
                 <div className="relative">
@@ -349,7 +369,7 @@ export default function AllApplications() {
             <CardContent className="p-8 text-center">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">
-                {searchName || filterDepartment !== 'all' || filterLeaveType !== 'all' || filter !== 'all' || startDate || endDate || filterYear !== 'all'
+                {searchName || filterDepartment !== 'all' || filterLeaveType !== 'all' || filter !== 'all' || filterUnit !== 'all' || startDate || endDate || filterYear !== 'all'
                   ? 'No applications match your filters'
                   : 'No applications found'}
               </p>
@@ -364,7 +384,7 @@ export default function AllApplications() {
                     <div>
                       <CardTitle className="text-lg">{app.staff?.full_name}</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        @{app.staff?.username} • {app.staff?.department?.name || 'No Department'}
+                        @{app.staff?.username} • {formatCollegeUnit((app.staff as any)?.college_unit)} • {app.staff?.department?.name || 'No Department'}
                       </p>
                     </div>
                     <div className="text-right">
@@ -383,7 +403,7 @@ export default function AllApplications() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Department</p>
-                      <p className="text-sm font-semibold">{app.staff?.department?.name || 'N/A'}</p>
+                      <p className="text-sm font-semibold">{formatCollegeUnit((app.staff as any)?.college_unit)} • {app.staff?.department?.name || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Duration</p>
