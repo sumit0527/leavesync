@@ -20,11 +20,14 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { formatAdminDesignation, formatCollegeUnit } from '@/lib/college-units';
 
 interface LeavesOnDate {
   staffName: string;
   department: string;
   leaveType: string;
+  unit: string;
+  role: string;
 }
 
 type DirectorReportScope = 'staff' | 'principal';
@@ -110,6 +113,8 @@ export default function AdminCalendar() {
         staffName: app.staff?.full_name ?? 'Unknown',
         department: (app.staff as any)?.department?.name ?? 'N/A',
         leaveType: app.leave_type?.name ?? 'Leave',
+        unit: formatCollegeUnit((app.staff as any)?.college_unit),
+        role: String((app.staff as any)?.role ?? '').toLowerCase() === 'staff' ? 'Staff' : formatAdminDesignation((app.staff as any)?.admin_designation),
       }));
   };
 
@@ -526,11 +531,12 @@ export default function AdminCalendar() {
                       <div className="space-y-2">
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                           <Users className="h-3.5 w-3.5" />
-                          {selectedDayLeaves.length} staff on leave
+                          {selectedDayLeaves.length} person{selectedDayLeaves.length === 1 ? '' : 's'} on leave
                         </p>
                         {selectedDayLeaves.map((l, i) => (
                           <div key={i} className="rounded-md border border-border bg-muted/30 p-2">
                             <p className="text-xs font-medium">{l.staffName}</p>
+                            <p className="text-[11px] text-muted-foreground">{l.unit} • {l.role}</p>
                             <p className="text-[11px] text-muted-foreground">{l.department}</p>
                             <Badge variant="secondary" className="mt-1 text-[10px]">{l.leaveType}</Badge>
                           </div>
