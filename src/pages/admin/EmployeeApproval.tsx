@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, Users, UserX, RotateCcw } from 'lucide-react';
 import type { Profile } from '@/types';
 import { sendRegistrationDecisionEmail } from '@/lib/email-notifications';
-import { ADMIN_DESIGNATIONS, COLLEGE_UNITS, formatAdminDesignation, formatCollegeUnit, type AdminDesignation, type CollegeUnit } from '@/lib/college-units';
+import { ADMIN_DESIGNATIONS, COLLEGE_UNITS, MANAGEMENT_SECTIONS, formatAdminDesignation, formatCollegeUnit, formatRoleForManagement, type AdminDesignation, type CollegeUnit, type ManagementSectionValue } from '@/lib/college-units';
 
 type EmployeeRecord = Profile & {
   employment_status?: 'active' | 'past';
@@ -24,6 +24,7 @@ export default function EmployeeApproval() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
+  const [sectionFilter, setSectionFilter] = useState<ManagementSectionValue>('all');
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const isViewingPrincipals = isMainAdmin || isViewer;
   const isDirectorManagingPrincipals = isMainAdmin;
@@ -31,6 +32,8 @@ export default function EmployeeApproval() {
   const managedRoleLabelPlural = isViewingPrincipals ? 'Employees / Principals' : 'Employees';
   const canApproveAccounts = (isPrincipal || isMainAdmin) && !isViewer;
   const canMovePastEmployees = isMainAdmin && !isViewer;
+  const selectedSection = MANAGEMENT_SECTIONS.find((item) => item.value === sectionFilter) ?? MANAGEMENT_SECTIONS[0];
+  const selectedSectionLabel = sectionFilter === 'all' ? managedRoleLabelPlural : selectedSection.label;
 
   useEffect(() => {
     fetchEmployees();
@@ -275,7 +278,7 @@ export default function EmployeeApproval() {
   };
 
   const getStatusBadge = (status: string, employmentStatus?: string) => {
-    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{isViewingPrincipals ? 'Past Principal' : 'Past Employee'}</Badge>;
+    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{employee.employment_status === 'past' ? 'Past' : (isViewingPrincipals ? 'Past Principal' : 'Past Employee')}</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600">Approved</Badge>;
@@ -294,8 +297,18 @@ export default function EmployeeApproval() {
     return `${actionText} by ${actorName}${actionDate ? ` on ${actionDate}` : ''}`;
   };
 
-  const currentEmployees = employees.filter(e => (e.employment_status ?? 'active') !== 'past');
-  const pastEmployees = employees.filter(e => e.employment_status === 'past');
+  const sectionFilteredEmployees = employees.filter((employee) => {
+    if (!isDirectorManagingPrincipals || sectionFilter === 'all') return true;
+    const selected = MANAGEMENT_SECTIONS.find((item) => item.value === sectionFilter);
+    if (!selected?.unit || !selected?.group) return true;
+    const role = String(employee.role ?? '').toLowerCase();
+    const isStaff = role === 'staff';
+    const isAdmin = role === 'admin' || role === 'principal';
+    if ((employee as any).college_unit !== selected.unit) return false;
+    return selected.group === 'staff' ? isStaff : isAdmin;
+  });
+  const currentEmployees = sectionFilteredEmployees.filter(e => (e.employment_status ?? 'active') !== 'past');
+  const pastEmployees = sectionFilteredEmployees.filter(e => e.employment_status === 'past');
   const visibleEmployees = activeTab === 'current' ? currentEmployees : pastEmployees;
   const pendingCount = currentEmployees.filter(e => e.approval_status === 'pending').length;
 
@@ -315,14 +328,14 @@ export default function EmployeeApproval() {
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isViewingPrincipals ? 'Principal Information' : 'Employee Management'}</h1>
+          <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isDirectorManagingPrincipals ? 'Employee & Principal Management' : isViewingPrincipals ? 'Principal Information' : 'Employee Management'}</h1>
           <p className="text-muted-foreground mt-2">{isDirectorManagingPrincipals ? 'Review and manage staff plus Principal/UH records across Junior, Senior, and Pharmacy.' : isViewer ? `${portalRoleLabel} can view all staff and Principal/UH information and download records. Approval and modification actions are hidden.` : canApproveAccounts ? 'Review staff registrations and approve or reject staff accounts. Past Employee actions are hidden for Principal.' : `${portalRoleLabel} can view records only.`}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">{isViewingPrincipals ? 'Current Principals' : 'Current Employees'}</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Current Records' : isViewingPrincipals ? 'Current Principals' : 'Current Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold sm:text-2xl">{currentEmployees.length}</div>
@@ -348,7 +361,7 @@ export default function EmployeeApproval() {
           </Card>
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-medium sm:text-sm">{isViewingPrincipals ? 'Past Principals' : 'Past Employees'}</CardTitle>
+              <CardTitle className="text-xs font-medium sm:text-sm">{isDirectorManagingPrincipals ? 'Past Records' : isViewingPrincipals ? 'Past Principals' : 'Past Employees'}</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="text-xl font-bold text-slate-600 sm:text-2xl">{pastEmployees.length}</div>
@@ -362,17 +375,31 @@ export default function EmployeeApproval() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  {isViewingPrincipals ? 'Principals' : 'Employees'}
+                  {isDirectorManagingPrincipals ? selectedSectionLabel : isViewingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
                 <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject unit Principal/UH registrations and records. One Principal and one UH are allowed per unit.' : isViewer ? 'Read-only Principal information. No approval or modification actions available.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only records. No approval or modification actions available.'}</CardDescription>
               </div>
-              <div className="flex rounded-md border border-border p-1">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                {isDirectorManagingPrincipals && (
+                  <Select value={sectionFilter} onValueChange={(value) => setSectionFilter(value as ManagementSectionValue)}>
+                    <SelectTrigger className="w-full sm:w-[240px]">
+                      <SelectValue placeholder="Select unit section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MANAGEMENT_SECTIONS.map((section) => (
+                        <SelectItem key={section.value} value={section.value}>{section.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="flex rounded-md border border-border p-1">
                 <Button size="sm" variant={activeTab === 'current' ? 'default' : 'ghost'} onClick={() => setActiveTab('current')}>
-                  {isViewingPrincipals ? 'Current Principals' : 'Current Employees'}
+                  {isDirectorManagingPrincipals ? 'Current Records' : isViewingPrincipals ? 'Current Principals' : 'Current Employees'}
                 </Button>
                 <Button size="sm" variant={activeTab === 'past' ? 'default' : 'ghost'} onClick={() => setActiveTab('past')}>
-                  {isViewingPrincipals ? 'Past Principals' : 'Past Employees'}
+                  {isDirectorManagingPrincipals ? 'Past Records' : isViewingPrincipals ? 'Past Principals' : 'Past Employees'}
                 </Button>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -383,7 +410,7 @@ export default function EmployeeApproval() {
               </div>
             ) : visibleEmployees.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {activeTab === 'current' ? `No current ${managedRoleLabel.toLowerCase()}s found` : `No past ${managedRoleLabel.toLowerCase()}s found`}
+                {activeTab === 'current' ? `No current ${selectedSectionLabel.toLowerCase()} found` : `No past ${selectedSectionLabel.toLowerCase()} found`}
               </div>
             ) : (
               <div className="w-full min-w-0 overflow-x-auto">
@@ -393,7 +420,7 @@ export default function EmployeeApproval() {
                       <th className="text-left p-3 whitespace-nowrap">Name</th>
                       <th className="text-left p-3 whitespace-nowrap">Role</th>
                       <th className="text-left p-3 whitespace-nowrap">College Unit</th>
-                      {!isViewingPrincipals && <th className="text-left p-3 whitespace-nowrap">Department</th>}
+                      {(!isViewingPrincipals || isDirectorManagingPrincipals) && <th className="text-left p-3 whitespace-nowrap">Department</th>}
                       <th className="text-left p-3 whitespace-nowrap">Email</th>
                       <th className="text-left p-3 whitespace-nowrap">Phone</th>
                       <th className="text-left p-3 whitespace-nowrap">Status</th>
@@ -453,8 +480,8 @@ export default function EmployeeApproval() {
                             formatCollegeUnit((employee as any).college_unit)
                           )}
                         </td>
-                        {!isViewingPrincipals && (
-                          <td className="p-3 whitespace-nowrap">{employee.department?.name || 'No department selected'}</td>
+                        {(!isViewingPrincipals || isDirectorManagingPrincipals) && (
+                          <td className="p-3 whitespace-nowrap">{employee.role === 'staff' ? (employee.department?.name || 'No department selected') : '-'}</td>
                         )}
                         <td className="p-3 whitespace-nowrap">{employee.email || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{employee.phone || '-'}</td>
