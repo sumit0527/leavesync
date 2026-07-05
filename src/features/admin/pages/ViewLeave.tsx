@@ -35,13 +35,20 @@ const formatLeaveDuration = (app: LeaveApplication) => {
   return 'Full Day';
 };
 
+
+const isStaffLeaveReadyForDirectorReview = (app: LeaveApplication | any) => {
+  const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
+  if (staffRole !== 'staff' || app?.status !== 'pending' || !app?.created_at) return false;
+  return new Date(app.created_at).getTime() <= Date.now() - 24 * 60 * 60 * 1000;
+};
+
 export default function ViewLeave() {
   const { profile, isViewer, isPrincipal, isMainAdmin, portalRoleLabel } = useAuth();
   const { applications, loading, refetch } = useLeaveApplications();
   const isDirectorView = isMainAdmin || isViewer;
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
   const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
-  const applicantRoleLabel = isDirectorView ? 'Principal / UH' : 'staff';
+  const applicantRoleLabel = isDirectorView ? 'Director-level' : 'staff';
 
 
   const getApplicantRoleLabel = (app?: LeaveApplication | null) => {
@@ -55,7 +62,7 @@ export default function ViewLeave() {
     if (!canManageLeaveApplications || app.status !== 'pending') return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
-    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin';
+    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isStaffLeaveReadyForDirectorReview(app);
     return false;
   };
   const { departments } = useDepartments();
@@ -73,6 +80,10 @@ export default function ViewLeave() {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterUnit, setFilterUnit] = useState<'all' | CollegeUnit>('all');
+
+  const departmentOptions = isDirectorView
+    ? departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit)
+    : departments.filter((dept) => (dept as any).college_unit === (profile as any)?.college_unit);
 
   const visibleApplications = applications.filter((app) => {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
@@ -196,7 +207,7 @@ export default function ViewLeave() {
         <div>
           <h1 className="text-3xl font-playfair-display font-bold gradient-text">View Leave Applications</h1>
           <p className="mt-2 text-muted-foreground">
-            {isViewer ? 'View Director-level leave applications in read-only mode' : isDirectorView ? 'Review Principal / UH leave applications' : 'Review, approve or reject staff leave applications'}
+            {isViewer ? 'View Director-level leave applications in read-only mode' : isDirectorView ? 'Review Principal / UH leave applications and staff requests waiting over 24 hours' : 'Review, approve or reject staff leave applications'}
           </p>
         </div>
 
@@ -242,7 +253,7 @@ export default function ViewLeave() {
                   <SelectTrigger className="px-3"><SelectValue placeholder="All departments" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((d) => (
+                    {departmentOptions.map((d) => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -280,7 +291,7 @@ export default function ViewLeave() {
         <Card>
           <CardHeader>
             <CardTitle className="font-playfair-display">
-              {isDirectorView ? 'Principal / UH Leave Applications' : 'Leave Applications'}
+              {isDirectorView ? 'Director Review Leave Applications' : 'Leave Applications'}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 ({filtered.length} record{filtered.length !== 1 ? 's' : ''})
               </span>
