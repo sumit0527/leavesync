@@ -178,6 +178,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (adminSecret.trim() !== validKey) {
           throw new Error('Invalid admin secret key');
         }
+
+        const targetRole = requestedRole ?? 'admin';
+        if (targetRole === 'admin' || targetRole === 'principal') {
+          if (!options?.collegeUnit || !options?.adminDesignation) {
+            throw new Error('Please select college unit and Principal/UH designation.');
+          }
+
+          const { data: slotCheck, error: slotCheckError } = await supabase.rpc(
+            'check_unit_admin_slot_available',
+            {
+              p_college_unit: options.collegeUnit,
+              p_admin_designation: options.adminDesignation
+            }
+          );
+
+          if (slotCheckError) {
+            console.error('Principal/UH slot check failed:', slotCheckError);
+            throw new Error('Could not verify Principal/UH slot. Please contact Director.');
+          }
+
+          const slotResult = Array.isArray(slotCheck) ? slotCheck[0] : slotCheck;
+          if (slotResult && slotResult.allowed === false) {
+            throw new Error(slotResult.message || 'This unit already has this Principal/UH designation.');
+          }
+        }
       }
 
       const { data: existingUsername } = await supabase
