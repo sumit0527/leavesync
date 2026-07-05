@@ -38,17 +38,12 @@ export default function PendingApplications() {
   const isDirectorView = isMainAdmin || isViewer;
   const canManageLeaveApplications = (isPrincipal || isMainAdmin) && !isViewer;
   const actionRoleLabel = isDirectorView ? 'Director' : 'Principal';
-  const applicantRoleLabel = isDirectorView ? 'Principal / escalated staff' : 'staff';
+  const applicantRoleLabel = isDirectorView ? 'Principal / UH' : 'staff';
 
-  const isEscalatedStaffLeave = (app: LeaveApplication) => {
-    const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
-    if (app.status !== 'pending' || staffRole !== 'staff' || !app.created_at) return false;
-    return Date.now() - new Date(app.created_at).getTime() >= 24 * 60 * 60 * 1000;
-  };
 
   const getApplicantRoleLabel = (app?: LeaveApplication | null) => {
     const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
-    if (staffRole === 'staff') return isEscalatedStaffLeave(app as LeaveApplication) ? 'escalated staff' : 'staff';
+    if (staffRole === 'staff') return 'staff';
     if (staffRole === 'principal' || staffRole === 'admin') return 'Principal';
     return 'applicant';
   };
@@ -57,7 +52,7 @@ export default function PendingApplications() {
     if (!canManageLeaveApplications || app.status !== 'pending') return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
-    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isEscalatedStaffLeave(app);
+    if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin';
     return false;
   };
 
