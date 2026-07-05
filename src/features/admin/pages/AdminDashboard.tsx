@@ -9,7 +9,7 @@ import { FileCheck, Users, CheckCircle, XCircle, Clock, Building2, UserPlus, Cal
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/db/supabase';
-import { formatCollegeUnit } from '@/lib/college-units';
+import { formatAdminDesignation, formatCollegeUnit } from '@/lib/college-units';
 
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
@@ -20,7 +20,7 @@ export default function AdminDashboard() {
   const isDirectorView = isMainAdmin || isViewer;
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
-  const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; role?: string; department?: { name: string } }[]>([]);
+  const [newStaffList, setNewStaffList] = useState<{ id: string; full_name: string; created_at: string; role?: string; college_unit?: string | null; admin_designation?: string | null; department?: { name: string } }[]>([]);
 
   const isEscalatedStaffLeave = (app: any) => {
     const applicantRole = String(app?.staff?.role ?? '').toLowerCase();
@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   const fetchNewStaff = useCallback(async () => {
     // Dashboard registration box should show staff registrations for Principal, Director, and Viewer.
     // Principal registrations are handled only in the dedicated Director approval flow.
-    const rolesToShow = ['staff'];
+    const rolesToShow = isDirectorView ? ['staff', 'admin', 'principal'] : ['staff'];
 
     let pendingQuery = supabase
       .from('profiles')
@@ -134,9 +134,10 @@ export default function AdminDashboard() {
 
       // Principal dashboard must show only staff-side leave work.
       // Principal leave applications belong to Director and should not appear here.
+      if (app.status !== 'pending') return false;
       if (isPrincipal && !isDirectorView) return applicantRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
 
-      // Director dashboard can monitor both staff and Principal leaves, with a role label below.
+      // Director dashboard can monitor currently-pending staff and Principal leaves, with a role label below.
       if (isDirectorView) return applicantRole === 'staff' || applicantRole === 'principal' || applicantRole === 'admin';
 
       return true;
@@ -254,6 +255,7 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd')}
                         </p>
+                        <p className="text-[11px] text-muted-foreground">{formatCollegeUnit((app.staff as any)?.college_unit)}</p>
                       </div>
                       {getStatusBadge(app.status)}
                     </div>
@@ -268,10 +270,10 @@ export default function AdminDashboard() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2 text-lg">
                   <UserPlus className="h-4 w-4 text-primary" />
-                  New Staff Registrations
+                  {isDirectorView ? 'Pending Staff & Principal Registrations' : 'New Staff Registrations'}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Pending staff registrations for Principal action
+                  {isDirectorView ? 'Only pending account requests. Approved/rejected records are removed from this box.' : 'Pending staff registrations for Principal action'}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
@@ -287,7 +289,7 @@ export default function AdminDashboard() {
                     <div key={staff.id} className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
                       <p className="truncate text-sm font-medium">{staff.full_name}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {staff.role === 'staff' ? (staff.department?.name || 'No department selected') : 'Principal account approval'}
+                        {staff.role === 'staff' ? (staff.department?.name || 'No department selected') : `${formatAdminDesignation((staff as any).admin_designation)} account approval`} • {formatCollegeUnit((staff as any).college_unit)}
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         Registered {format(new Date(staff.created_at), 'MMM dd')}
