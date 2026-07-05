@@ -35,6 +35,8 @@ type DirectorReportFormat = 'pdf' | 'excel';
 
 interface DirectorReportRow {
   name: string;
+  unit: string;
+  designation: string;
   department: string;
   email: string;
   phone: string;
@@ -187,6 +189,8 @@ export default function AdminCalendar() {
       if (personApps.length === 0) {
         return [{
           name: clean(person.full_name),
+          unit: formatCollegeUnit(person.college_unit),
+          designation: scope === 'staff' ? 'Staff' : formatAdminDesignation(person.admin_designation),
           department: scope === 'staff' ? clean(person.department?.name) : 'N/A',
           email: clean(person.email),
           phone: clean(person.phone),
@@ -203,6 +207,8 @@ export default function AdminCalendar() {
 
       return personApps.map((app: any) => ({
         name: clean(person.full_name),
+        unit: formatCollegeUnit(person.college_unit),
+        designation: scope === 'staff' ? 'Staff' : formatAdminDesignation(person.admin_designation),
         department: scope === 'staff' ? clean(person.department?.name ?? app.staff?.department?.name) : 'N/A',
         email: clean(person.email),
         phone: clean(person.phone),
@@ -224,14 +230,14 @@ export default function AdminCalendar() {
       ['LeaveSync', title],
       ['Generated At', format(new Date(), 'dd/MM/yyyy HH:mm')],
       [],
-      ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
-      ...rows.map(r => [r.name, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, r.leaveBalance]),
+      ['Name', 'Unit', 'Designation', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
+      ...rows.map(r => [r.name, r.unit, r.designation, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, r.leaveBalance]),
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!autofilter'] = { ref: 'A4:L4' };
+    ws['!autofilter'] = { ref: 'A4:N4' };
     ws['!cols'] = [
-      { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+      { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
       { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 48 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, scope === 'staff' ? 'Staff Report' : 'Principal Report');
@@ -243,9 +249,11 @@ export default function AdminCalendar() {
     downloadTablePdf({
       title,
       subtitle: scope === 'staff' ? 'Staff records with leave activity' : 'Principal records with leave activity',
-      headers: ['Name', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
+      headers: ['Name', 'Unit', 'Designation', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
       rows: rows.map((r) => [
         r.name,
+        r.unit,
+        r.designation,
         r.department,
         r.email,
         r.phone,
