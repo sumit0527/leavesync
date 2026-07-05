@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { generateProfileReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { formatAdminDesignation, formatCollegeUnit } from '@/lib/college-units';
 
 
 
@@ -110,7 +111,10 @@ export default function Profile() {
       email: profile?.email || '',
       phone: profile?.phone || '',
       address: profile?.address || '',
-      role: isPrincipal ? 'Principal' : 'Staff Member',
+      role: isPrincipal ? 'Principal / UH' : 'Staff Member',
+      college_unit: formatCollegeUnit((profile as any)?.college_unit),
+      admin_designation: isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff',
+      department: (profile as any)?.department?.name || 'N/A',
       stats,
       allocations: allocations.map(a => ({
         leave_type: a.leave_type?.name || 'N/A',
@@ -129,7 +133,10 @@ export default function Profile() {
       ['Profile', 'Email', profile?.email || '-', '', ''],
       ['Profile', 'Phone', profile?.phone || '-', '', ''],
       ['Profile', 'Address', profile?.address || '-', '', ''],
-      ['Profile', 'Role', isPrincipal ? 'Principal' : 'Staff Member', '', ''],
+      ['Profile', 'Role', isPrincipal ? 'Principal / UH' : 'Staff Member', '', ''],
+      ['Profile', 'College Unit', formatCollegeUnit((profile as any)?.college_unit), '', ''],
+      ['Profile', 'Designation', isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff', '', ''],
+      ['Profile', 'Department', (profile as any)?.department?.name || 'N/A', '', ''],
       ['Application Summary', 'Total', stats.total, '', ''],
       ['Application Summary', 'Approved', stats.approved, '', ''],
       ['Application Summary', 'Pending', stats.pending, '', ''],
