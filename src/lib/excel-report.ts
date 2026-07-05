@@ -452,6 +452,8 @@ export function generateLeaveHistoryReport(
 export interface AllApplicationsRow {
   serial: number;
   staff_name: string;
+  unit?: string;
+  designation?: string;
   department: string;
   leave_type: string;
   start_date: string;
@@ -470,8 +472,8 @@ export function generateAllApplicationsReport(
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  const cols = ['#', 'Staff Name', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
-  const colWidths = [6, 22, 20, 18, 14, 14, 22, 8, 12, 36, 32];
+  const cols = ['#', 'Applicant Name', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
+  const colWidths = [6, 24, 18, 16, 20, 18, 14, 14, 22, 8, 12, 36, 32];
   let rowIdx = addCompanyHeader(ws, cols.length, `All Leave Applications (${filterLabel})`);
 
   cols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
@@ -481,15 +483,17 @@ export function generateAllApplicationsReport(
     const s = rowStyle(i);
     writeCell(ws, rowIdx, 0, row.serial, s);
     writeCell(ws, rowIdx, 1, row.staff_name, s);
-    writeCell(ws, rowIdx, 2, row.department, s);
-    writeCell(ws, rowIdx, 3, row.leave_type, s);
-    writeCell(ws, rowIdx, 4, row.start_date, s);
-    writeCell(ws, rowIdx, 5, row.end_date, s);
-    writeCell(ws, rowIdx, 6, row.duration || 'Full Day', s);
-    writeCell(ws, rowIdx, 7, row.days, s);
-    writeCell(ws, rowIdx, 8, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
-    writeCell(ws, rowIdx, 9, row.reason, s);
-    writeCell(ws, rowIdx, 10, row.admin_response || 'N/A', s);
+    writeCell(ws, rowIdx, 2, row.unit || 'Unit Not Assigned', s);
+    writeCell(ws, rowIdx, 3, row.designation || 'Staff', s);
+    writeCell(ws, rowIdx, 4, row.department, s);
+    writeCell(ws, rowIdx, 5, row.leave_type, s);
+    writeCell(ws, rowIdx, 6, row.start_date, s);
+    writeCell(ws, rowIdx, 7, row.end_date, s);
+    writeCell(ws, rowIdx, 8, row.duration || 'Full Day', s);
+    writeCell(ws, rowIdx, 9, row.days, s);
+    writeCell(ws, rowIdx, 10, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
+    writeCell(ws, rowIdx, 11, row.reason, s);
+    writeCell(ws, rowIdx, 12, row.admin_response || 'N/A', s);
     rowIdx++;
   });
 
@@ -497,7 +501,7 @@ export function generateAllApplicationsReport(
   writeCell(ws, rowIdx, 0, 'TOTAL', ts);
   writeCell(ws, rowIdx, 1, `${rows.length} records`, ts);
   for (let c = 2; c < cols.length - 1; c++) writeCell(ws, rowIdx, c, '', ts);
-  writeCell(ws, rowIdx, 7, rows.reduce((s, r) => s + r.days, 0), ts);
+  writeCell(ws, rowIdx, 9, rows.reduce((s, r) => s + r.days, 0), ts);
   writeCell(ws, rowIdx, cols.length - 1, '', ts);
 
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx, c: cols.length - 1 } });
@@ -508,6 +512,7 @@ export function generateAllApplicationsReport(
 
 // ─── Analytics Report (Admin) ─────────────────────────────────────────────────
 export interface AnalyticsDeptRow {
+  unit?: string;
   department: string;
   total: number;
   approved: number;
@@ -530,26 +535,27 @@ export function generateAnalyticsReport(
   stats: AnalyticsStats,
   deptStats: AnalyticsDeptRow[],
   leaveTypeStats: AnalyticsLeaveTypeRow[],
-  year: number
+  year: number,
+  scopeLabel = 'All Units'
 ): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  let rowIdx = addCompanyHeader(ws, 6, `Leave Analytics Report — ${year}`);
+  let rowIdx = addCompanyHeader(ws, 7, `Leave Analytics Report — ${year} (${scopeLabel})`);
 
   // Overall stats
   writeCell(ws, rowIdx, 0, 'Overall Statistics', {
     font: { bold: true, sz: 12, color: { rgb: 'D4AF37' } },
     fill: { fgColor: { rgb: '2C1F08' }, patternType: 'solid' },
   });
-  for (let c = 1; c < 6; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
+  for (let c = 1; c < 7; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
   if (!ws['!merges']) ws['!merges'] = [];
-  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:F${rowIdx + 1}`));
+  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:G${rowIdx + 1}`));
   rowIdx++;
 
   const overallCols = ['Metric', 'Count', 'Percentage'];
   overallCols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
-  for (let c = 3; c < 6; c++) writeCell(ws, rowIdx, c, '', headerStyle());
+  for (let c = 3; c < 7; c++) writeCell(ws, rowIdx, c, '', headerStyle());
   rowIdx++;
 
   const overallRows: [string, number, string][] = [
@@ -564,7 +570,7 @@ export function generateAnalyticsReport(
     writeCell(ws, rowIdx, 0, row[0], s);
     writeCell(ws, rowIdx, 1, row[1], s);
     writeCell(ws, rowIdx, 2, row[2], s);
-    for (let c = 3; c < 6; c++) writeCell(ws, rowIdx, c, '', s);
+    for (let c = 3; c < 7; c++) writeCell(ws, rowIdx, c, '', s);
     rowIdx++;
   });
 
@@ -575,12 +581,12 @@ export function generateAnalyticsReport(
     font: { bold: true, sz: 12, color: { rgb: 'D4AF37' } },
     fill: { fgColor: { rgb: '2C1F08' }, patternType: 'solid' },
   });
-  for (let c = 1; c < 6; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
+  for (let c = 1; c < 7; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
   if (!ws['!merges']) ws['!merges'] = [];
-  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:F${rowIdx + 1}`));
+  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:G${rowIdx + 1}`));
   rowIdx++;
 
-  ['Department', 'Total', 'Approved', 'Rejected', 'Pending', 'Approval %'].forEach((col, c) => {
+  ['Unit', 'Department', 'Total', 'Approved', 'Rejected', 'Pending', 'Approval %'].forEach((col, c) => {
     writeCell(ws, rowIdx, c, col, headerStyle());
   });
   rowIdx++;
@@ -588,12 +594,13 @@ export function generateAnalyticsReport(
   deptStats.forEach((d, i) => {
     const s = rowStyle(i);
     const pct = d.total > 0 ? `${((d.approved / d.total) * 100).toFixed(1)}%` : '0%';
-    writeCell(ws, rowIdx, 0, d.department, s);
-    writeCell(ws, rowIdx, 1, d.total, s);
-    writeCell(ws, rowIdx, 2, d.approved, s);
-    writeCell(ws, rowIdx, 3, d.rejected, s);
-    writeCell(ws, rowIdx, 4, d.pending, s);
-    writeCell(ws, rowIdx, 5, pct, s);
+    writeCell(ws, rowIdx, 0, d.unit || scopeLabel, s);
+    writeCell(ws, rowIdx, 1, d.department, s);
+    writeCell(ws, rowIdx, 2, d.total, s);
+    writeCell(ws, rowIdx, 3, d.approved, s);
+    writeCell(ws, rowIdx, 4, d.rejected, s);
+    writeCell(ws, rowIdx, 5, d.pending, s);
+    writeCell(ws, rowIdx, 6, pct, s);
     rowIdx++;
   });
 
@@ -604,12 +611,12 @@ export function generateAnalyticsReport(
     font: { bold: true, sz: 12, color: { rgb: 'D4AF37' } },
     fill: { fgColor: { rgb: '2C1F08' }, patternType: 'solid' },
   });
-  for (let c = 1; c < 6; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
+  for (let c = 1; c < 7; c++) writeCell(ws, rowIdx, c, '', deptHeaderStyle());
   if (!ws['!merges']) ws['!merges'] = [];
-  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:F${rowIdx + 1}`));
+  ws['!merges'].push(XLSX.utils.decode_range(`A${rowIdx + 1}:G${rowIdx + 1}`));
   rowIdx++;
 
-  ['Leave Type', 'Applications Count', '% of Total', '', '', ''].forEach((col, c) => {
+  ['Leave Type', 'Applications Count', '% of Total', '', '', '', ''].forEach((col, c) => {
     writeCell(ws, rowIdx, c, col, headerStyle());
   });
   rowIdx++;
@@ -619,12 +626,12 @@ export function generateAnalyticsReport(
     writeCell(ws, rowIdx, 0, lt.leave_type, s);
     writeCell(ws, rowIdx, 1, lt.count, s);
     writeCell(ws, rowIdx, 2, `${lt.percentage}%`, s);
-    for (let c = 3; c < 6; c++) writeCell(ws, rowIdx, c, '', s);
+    for (let c = 3; c < 7; c++) writeCell(ws, rowIdx, c, '', s);
     rowIdx++;
   });
 
-  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx, c: 5 } });
-  setColWidths(ws, [30, 16, 16, 14, 14, 14]);
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowIdx, c: 6 } });
+  setColWidths(ws, [18, 30, 16, 16, 14, 14, 14]);
   XLSX.utils.book_append_sheet(wb, ws, 'Analytics');
   return wb;
 }
@@ -642,6 +649,9 @@ export interface ProfileReportData {
   phone: string;
   address: string;
   role: string;
+  college_unit?: string;
+  admin_designation?: string;
+  department?: string;
   stats: { total: number; approved: number; rejected: number; pending: number };
   allocations: Array<{ leave_type: string; total_allocated: number; used: number; remaining: number }>;
 }
@@ -663,6 +673,9 @@ export function generateProfileReport(data: ProfileReportData): XLSX.WorkBook {
     ['Phone', data.phone || 'N/A'],
     ['Address', data.address || 'N/A'],
     ['Role', data.role || 'Staff'],
+    ['College Unit', data.college_unit || 'Unit Not Assigned'],
+    ['Designation', data.admin_designation || data.role || 'Staff'],
+    ['Department', data.department || 'N/A'],
     ['Report Date', format(now, 'dd/MM/yyyy HH:mm')],
   ];
   infoFields.forEach(([f, v], i) => {
