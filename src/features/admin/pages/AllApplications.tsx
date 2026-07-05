@@ -21,7 +21,7 @@
 
   import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
   import { downloadTablePdf } from '@/lib/pdf-report';
-  import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
+  import { COLLEGE_UNITS, formatAdminDesignation, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
   const formatLeaveDuration = (app: any) => {
     if (app.leave_duration === 'half_day') {
@@ -152,7 +152,7 @@
       downloadTablePdf({
         title: isDirectorView ? 'Director Review Leave Applications Report' : 'All Leave Applications Report',
         subtitle: `Filter: ${getFilterLabel()}`,
-        headers: ['#', 'Applicant', 'Unit', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
+        headers: ['#', 'Applicant', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
         rows: rows.map((row) => [
           row.serial,
           row.staff_name,
