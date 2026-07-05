@@ -30,6 +30,13 @@ const formatLeaveDuration = (app: any) => {
   return 'Full Day';
 };
 
+
+const isStaffLeaveReadyForDirectorReview = (app: LeaveApplication | any) => {
+  const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
+  if (staffRole !== 'staff' || app?.status !== 'pending' || !app?.created_at) return false;
+  return new Date(app.created_at).getTime() <= Date.now() - 24 * 60 * 60 * 1000;
+};
+
 export default function AllApplications() {
   const { applications, loading } = useLeaveApplications();
   const { profile, isMainAdmin, isPrincipal, isViewer } = useAuth();
@@ -44,6 +51,9 @@ export default function AllApplications() {
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterLeaveType, setFilterLeaveType] = useState('all');
   const [filterUnit, setFilterUnit] = useState<'all' | CollegeUnit>('all');
+  const departmentOptions = isDirectorView
+    ? departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit)
+    : departments.filter((dept) => (dept as any).college_unit === (profile as any)?.college_unit);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -140,7 +150,7 @@ export default function AllApplications() {
   const exportToPDF = () => {
     const rows = getReportRows();
     downloadTablePdf({
-      title: isDirectorView ? 'Principal / UH Leave Applications Report' : 'All Leave Applications Report',
+      title: isDirectorView ? 'Director Review Leave Applications Report' : 'All Leave Applications Report',
       subtitle: `Filter: ${getFilterLabel()}`,
       headers: ['#', 'Applicant', 'Unit', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
       rows: rows.map((row) => [
@@ -283,7 +293,7 @@ export default function AllApplications() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
+                    {departmentOptions.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
                       </SelectItem>
