@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
     } else if (tokenRow.target_table === 'leave_applications') {
       const { data: leaveApplication, error: leaveCheckError } = await supabaseAdmin
         .from('leave_applications')
-        .select('id, status')
+        .select('id, status, staff_id, leave_type_id, leave_days, start_date')
         .eq('id', tokenRow.target_id)
         .maybeSingle();
 
@@ -257,6 +257,29 @@ Deno.serve(async (req) => {
         })
         .eq('id', tokenRow.target_id);
       if (error) throw error;
+
+      if (newStatus === 'approved' && leaveApplication.staff_id && leaveApplication.leave_type_id) {
+        const leaveYear = leaveApplication.start_date ? new Date(`${leaveApplication.start_date}T00:00:00`).getFullYear() : new Date().getFullYear();
+        await supabaseAdmin.rpc('initialize_staff_leave_allocations', { p_staff_id: leaveApplication.staff_id });
+        const { data: allocation } = await supabaseAdmin
+          .from('staff_leave_allocations')
+          .select('id, total_allocated, used')
+          .eq('staff_id', leaveApplication.staff_id)
+          .eq('leave_type_id', leaveApplication.leave_type_id)
+          .eq('year', leaveYear)
+          .maybeSingle();
+        if (allocation?.id) {
+          const nextUsed = Number(allocation.used ?? 0) + Number(leaveApplication.leave_days ?? 0);
+          await supabaseAdmin
+            .from('staff_leave_allocations')
+            .update({
+              used: nextUsed,
+              remaining: Math.max(0, Number(allocation.total_allocated ?? 0) - nextUsed),
+              updated_at: now,
+            })
+            .eq('id', allocation.id);
+        }
+      }
 
       const reviewerRoleLabel = ['main_admin', 'director'].includes(String(tokenRow.actor_role)) ? 'Director' : 'Principal / UH';
       const decisionResponse = await fetch(`${supabaseUrl}/functions/v1/send-leave-decision-email`, {
