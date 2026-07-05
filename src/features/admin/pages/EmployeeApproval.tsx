@@ -34,6 +34,7 @@ export default function EmployeeApproval() {
   const canMovePastEmployees = isMainAdmin && !isViewer;
   const selectedSection = MANAGEMENT_SECTIONS.find((item) => item.value === sectionFilter) ?? MANAGEMENT_SECTIONS[0];
   const selectedSectionLabel = sectionFilter === 'all' ? managedRoleLabelPlural : selectedSection.label;
+  const canUseUnitSectionFilter = isMainAdmin || isViewer;
 
   useEffect(() => {
     fetchEmployees();
@@ -278,7 +279,7 @@ export default function EmployeeApproval() {
   };
 
   const getStatusBadge = (status: string, employmentStatus?: string) => {
-    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{employee.employment_status === 'past' ? 'Past' : (isViewingPrincipals ? 'Past Principal' : 'Past Employee')}</Badge>;
+    if (employmentStatus === 'past') return <Badge variant="outline" className="border-slate-400 text-slate-600">{isViewingPrincipals ? 'Past Record' : 'Past Employee'}</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600">Approved</Badge>;
@@ -298,7 +299,7 @@ export default function EmployeeApproval() {
   };
 
   const sectionFilteredEmployees = employees.filter((employee) => {
-    if (!isDirectorManagingPrincipals || sectionFilter === 'all') return true;
+    if (!canUseUnitSectionFilter || sectionFilter === 'all') return true;
     const selected = MANAGEMENT_SECTIONS.find((item) => item.value === sectionFilter);
     if (!selected?.unit || !selected?.group) return true;
     const role = String(employee.role ?? '').toLowerCase();
@@ -375,12 +376,12 @@ export default function EmployeeApproval() {
               <div>
                 <CardTitle className="font-playfair-display flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  {isDirectorManagingPrincipals ? selectedSectionLabel : isViewingPrincipals ? 'Principals' : 'Employees'}
+                  {canUseUnitSectionFilter ? selectedSectionLabel : isViewingPrincipals ? 'Principals' : 'Employees'}
                 </CardTitle>
                 <CardDescription>{isDirectorManagingPrincipals ? 'Director can approve or reject unit Principal/UH registrations and records. One Principal and one UH are allowed per unit.' : isViewer ? 'Read-only Principal information. No approval or modification actions available.' : canApproveAccounts ? (isPrincipal ? 'Approve or reject staff registrations. Past Employee actions are Director-only.' : 'Use Past Employees for staff who left college without deleting history') : 'Read-only records. No approval or modification actions available.'}</CardDescription>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                {isDirectorManagingPrincipals && (
+                {canUseUnitSectionFilter && (
                   <Select value={sectionFilter} onValueChange={(value) => setSectionFilter(value as ManagementSectionValue)}>
                     <SelectTrigger className="w-full sm:w-[240px]">
                       <SelectValue placeholder="Select unit section" />
