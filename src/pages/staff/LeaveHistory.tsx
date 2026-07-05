@@ -17,6 +17,7 @@ import { useState } from 'react';
 
 import { generateLeaveHistoryReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { formatAdminDesignation, formatCollegeUnit } from '@/lib/college-units';
 
 const formatLeaveDuration = (app: any) => {
   if (app.leave_duration === 'half_day') {
@@ -59,7 +60,7 @@ export default function LeaveHistory() {
       reason: app.reason || '',
       admin_response: app.admin_response || 'N/A',
     }));
-    const staffName = profile?.full_name || 'Staff';
+    const staffName = `${profile?.full_name || 'Staff'} (${formatCollegeUnit((profile as any)?.college_unit)} • ${isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff'})`;
     const wb = generateLeaveHistoryReport(rows, staffName, filterLabel);
     downloadWorkbook(wb, `leave_history_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
@@ -69,7 +70,7 @@ export default function LeaveHistory() {
     const reviewerLabel = isPrincipal ? 'Director Response' : 'Principal Response';
     downloadTablePdf({
       title: 'Leave History Report',
-      subtitle: `${isPrincipal ? 'Principal' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal' : 'Staff')} | Filter: ${filterLabel}`,
+      subtitle: `${isPrincipal ? 'Principal / UH' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal / UH' : 'Staff')} | Unit: ${formatCollegeUnit((profile as any)?.college_unit)} | Designation: ${isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff'} | Filter: ${filterLabel}`,
       headers: ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', reviewerLabel],
       rows: filteredApplications.map((app, idx) => [
         idx + 1,
