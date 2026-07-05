@@ -26,7 +26,7 @@ import {
   Filter,
 } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
-import { formatCollegeUnit } from '@/lib/college-units';
+import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 const formatLeaveDuration = (app: LeaveApplication) => {
   if (app.leave_duration === 'half_day') {
@@ -77,6 +77,7 @@ export default function ViewLeave() {
   const [filterDept, setFilterDept] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterUnit, setFilterUnit] = useState<'all' | CollegeUnit>('all');
 
   const visibleApplications = applications.filter((app) => {
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
@@ -96,6 +97,7 @@ export default function ViewLeave() {
 
   const filtered = visibleApplications.filter((app) => {
     if (filterStatus !== 'all' && app.status !== filterStatus) return false;
+    if (filterUnit !== 'all' && (app.staff as any)?.college_unit !== filterUnit) return false;
     if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (filterDept !== 'all' && app.staff?.department_id !== filterDept) return false;
     if (filterType !== 'all' && app.leave_type_id !== filterType) return false;
@@ -212,7 +214,21 @@ export default function ViewLeave() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {isDirectorView && (
+                <div className="space-y-1">
+                  <Label>College Unit</Label>
+                  <Select value={filterUnit} onValueChange={(value) => setFilterUnit(value as 'all' | CollegeUnit)}>
+                    <SelectTrigger><SelectValue placeholder="All units" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Units</SelectItem>
+                      {COLLEGE_UNITS.map((unit) => (
+                        <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label>Employee Name</Label>
                 <div className="relative">
@@ -292,6 +308,7 @@ export default function ViewLeave() {
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Employee Name</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Unit</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Department</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Leave Type</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">From</th>
@@ -309,6 +326,9 @@ export default function ViewLeave() {
                       <tr key={app.id} className="border-b border-border transition-colors hover:bg-muted/30">
                         <td className="whitespace-nowrap px-4 py-3 font-medium">
                           {app.staff?.full_name ?? '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                          {formatCollegeUnit((app.staff as any)?.college_unit)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                           {(app.staff as any)?.department?.name ?? '—'}
