@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 import { Building2, Plus, Edit, Trash2, Loader2, Users } from 'lucide-react';
 import type { Department } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 export default function Departments() {
   const { isViewer, isPrincipal } = useAuth();
@@ -26,12 +28,15 @@ export default function Departments() {
   
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [unit, setUnit] = useState<CollegeUnit>('senior');
+  const [filterUnit, setFilterUnit] = useState<'all' | CollegeUnit>('all');
 
   const handleCreate = () => {
     if (isConfigReadOnly) return;
     setEditingDept(null);
     setName('');
     setDescription('');
+    setUnit('senior');
     setDialogOpen(true);
   };
 
@@ -40,6 +45,7 @@ export default function Departments() {
     setEditingDept(dept);
     setName(dept.name);
     setDescription(dept.description || '');
+    setUnit(((dept as any).college_unit as CollegeUnit) || 'senior');
     setDialogOpen(true);
   };
 
@@ -66,7 +72,8 @@ export default function Departments() {
           .from('departments')
           .update({
             name: name.trim(),
-            description: description.trim() || null
+            description: description.trim() || null,
+            college_unit: unit
           })
           .eq('id', editingDept.id);
 
@@ -77,7 +84,8 @@ export default function Departments() {
           .from('departments')
           .insert({
             name: name.trim(),
-            description: description.trim() || null
+            description: description.trim() || null,
+            college_unit: unit
           });
 
         if (error) throw error;
@@ -150,6 +158,28 @@ export default function Departments() {
           )}
         </div>
 
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
+              <div className="space-y-2">
+                <Label>College Unit Filter</Label>
+                <Select value={filterUnit} onValueChange={(value) => setFilterUnit(value as 'all' | CollegeUnit)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All units" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Units</SelectItem>
+                    {COLLEGE_UNITS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="self-end text-sm text-muted-foreground">Create departments under the correct unit so staff registration and reports stay clean.</p>
+            </div>
+          </CardContent>
+        </Card>
+
         {loading ? (
           <Card>
             <CardContent className="p-8 text-center">
@@ -157,7 +187,7 @@ export default function Departments() {
               <p className="mt-4 text-muted-foreground">Loading departments...</p>
             </CardContent>
           </Card>
-        ) : departments.length === 0 ? (
+        ) : departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit).length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -172,7 +202,7 @@ export default function Departments() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {departments.map((dept) => (
+            {departments.filter((dept) => filterUnit === 'all' || (dept as any).college_unit === filterUnit).map((dept) => (
               <Card key={dept.id} className="h-full flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -197,6 +227,7 @@ export default function Departments() {
                     )}
                   </div>
                   <CardTitle className="font-playfair-display">{dept.name}</CardTitle>
+                  <p className="text-xs font-medium text-primary">{formatCollegeUnit((dept as any).college_unit)}</p>
                   {dept.description && (
                     <CardDescription className="text-pretty">{dept.description}</CardDescription>
                   )}
@@ -223,6 +254,19 @@ export default function Departments() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>College Unit *</Label>
+                <Select value={unit} onValueChange={(value) => setUnit(value as CollegeUnit)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select college unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLLEGE_UNITS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Department Name *</Label>
                 <Input
