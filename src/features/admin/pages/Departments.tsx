@@ -69,36 +69,27 @@ export default function Departments() {
 
     setProcessing(true);
     try {
-      if (editingDept) {
-        const { error } = await supabase
-          .from('departments')
-          .update({
-            name: name.trim(),
-            description: description.trim() || null,
-            college_unit: unit
-          })
-          .eq('id', editingDept.id);
+      const { data, error } = await supabase.rpc('save_department_safely', {
+        p_department_id: editingDept?.id ?? null,
+        p_name: name.trim(),
+        p_description: description.trim() || null,
+        p_college_unit: unit,
+      });
 
-        if (error) throw error;
-        toast.success('Department updated successfully');
-      } else {
-        const { error } = await supabase
-          .from('departments')
-          .insert({
-            name: name.trim(),
-            description: description.trim() || null,
-            college_unit: unit
-          });
+      if (error) throw error;
 
-        if (error) throw error;
-        toast.success('Department created successfully');
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        toast.error(result?.message || 'Department could not be saved');
+        return;
       }
 
+      toast.success(result.message || (editingDept ? 'Department updated successfully' : 'Department created successfully'));
       setDialogOpen(false);
-      refetch();
-    } catch (error) {
+      await refetch();
+    } catch (error: any) {
       console.error('Submit error:', error);
-      toast.error('Failed to save department');
+      toast.error(error?.message || 'Failed to save department');
     } finally {
       setProcessing(false);
     }
