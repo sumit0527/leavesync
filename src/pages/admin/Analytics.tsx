@@ -19,6 +19,7 @@ import {
 import { format } from 'date-fns';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
+import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 interface DepartmentStats {
   department: string;
@@ -79,6 +80,7 @@ export default function Analytics() {
   const isDirectorView = isMainAdmin || isViewer;
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [selectedUnit, setSelectedUnit] = useState<'all' | CollegeUnit>('all');
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   const [stats, setStats] = useState({ total: 0, approved: 0, rejected: 0, pending: 0 });
@@ -95,7 +97,7 @@ export default function Analytics() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedYear]);
+  }, [selectedYear, selectedUnit]);
 
   const fetchAnalytics = async (year: number) => {
     try {
@@ -105,11 +107,11 @@ export default function Analytics() {
 
       const { data: allData } = await supabase
         .from('leave_applications')
-        .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, department:departments(name))')
+        .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, college_unit, admin_designation, department:departments(name))')
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd);
 
-      const rows = Array.isArray(allData) ? allData : [];
+      const rows = (Array.isArray(allData) ? allData : []).filter((app: any) => selectedUnit === 'all' || app.staff?.college_unit === selectedUnit);
 
       // Principal Analytics = staff analysis only.
       // Director/Viewer Analytics summary = Principal leave stats only.
@@ -218,7 +220,7 @@ export default function Analytics() {
     const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
     downloadTablePdf({
       title: `Analytics Report ${selectedYear}`,
-      subtitle: 'Summary + Department-wise + Leave Type Usage',
+      subtitle: `Summary + Department-wise + Leave Type Usage${selectedUnit !== 'all' ? ` • ${formatCollegeUnit(selectedUnit)}` : ''}`, 
       headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
       rows: [
         ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
@@ -241,7 +243,20 @@ export default function Analytics() {
             <h1 className="text-3xl font-playfair-display font-bold gradient-text">Analytics Dashboard</h1>
             <p className="mt-2 text-muted-foreground">{isDirectorView ? 'Principal leave statistics with staff department tracking' : 'Staff leave statistics and insights'}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {isDirectorView && (
+              <Select value={selectedUnit} onValueChange={(value) => setSelectedUnit(value as 'all' | CollegeUnit)}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All units" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Units</SelectItem>
+                  {COLLEGE_UNITS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {/* Year selector */}
             <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
               <SelectTrigger className="w-32">
