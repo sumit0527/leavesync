@@ -21,7 +21,7 @@ import { useState } from 'react';
 
 import { generateAllApplicationsReport, downloadWorkbook } from '@/lib/excel-report';
 import { downloadTablePdf } from '@/lib/pdf-report';
-import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
+import { COLLEGE_UNITS, formatAdminDesignation, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 const formatLeaveDuration = (app: any) => {
   if (app.leave_duration === 'half_day') {
@@ -131,6 +131,7 @@ export default function AllApplications() {
     serial: idx + 1,
     staff_name: app.staff?.full_name || 'N/A',
     unit: formatCollegeUnit((app.staff as any)?.college_unit),
+    designation: String((app.staff as any)?.role ?? '').toLowerCase() === 'staff' ? 'Staff' : formatAdminDesignation((app.staff as any)?.admin_designation),
     department: app.staff?.department?.name || 'N/A',
     leave_type: app.leave_type?.name || 'N/A',
     start_date: format(new Date(app.start_date), 'dd/MM/yyyy'),
@@ -152,11 +153,12 @@ export default function AllApplications() {
     downloadTablePdf({
       title: isDirectorView ? 'Director Review Leave Applications Report' : 'All Leave Applications Report',
       subtitle: `Filter: ${getFilterLabel()}`,
-      headers: ['#', 'Applicant', 'Unit', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
+      headers: ['#', 'Applicant', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
       rows: rows.map((row) => [
         row.serial,
         row.staff_name,
         row.unit,
+        row.designation,
         row.department,
         row.leave_type,
         row.start_date,
