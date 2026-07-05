@@ -6,6 +6,7 @@ import { useNotifications } from '@/hooks/use-notifications';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Bell, CheckCheck, ClipboardCheck } from 'lucide-react';
+import { formatCollegeUnit } from '@/lib/college-units';
 
 export default function AdminNotifications() {
   const { profile, portalRoleLabel, isViewer, isPrincipal, isMainAdmin } = useAuth();
@@ -86,9 +87,15 @@ export default function AdminNotifications() {
                         <p className="mt-1 text-xs text-muted-foreground">
                           {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
                         </p>
+                        {(notification as any).college_unit && (
+                          <p className="mt-1 text-[11px] font-medium text-primary">{formatCollegeUnit((notification as any).college_unit)}</p>
+                        )}
                       </div>
                     </div>
-                    {!notification.is_read && <Badge variant="default">Pending</Badge>}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {(notification as any).college_unit && <Badge variant="outline">{formatCollegeUnit((notification as any).college_unit)}</Badge>}
+                      {!notification.is_read && <Badge variant="default">Pending</Badge>}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
