@@ -111,32 +111,25 @@ export default function Departments() {
 
     setProcessing(true);
     try {
-      // Check if department has employees
-      const { data: employees } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('department_id', deletingDept.id);
-
-      if (employees && employees.length > 0) {
-        toast.error('Cannot delete department with assigned employees');
-        setDeleteDialogOpen(false);
-        setProcessing(false);
-        return;
-      }
-
-      const { error } = await supabase
-        .from('departments')
-        .delete()
-        .eq('id', deletingDept.id);
+      const { data, error } = await supabase.rpc('delete_department_safely', {
+        p_department_id: deletingDept.id,
+      });
 
       if (error) throw error;
 
-      toast.success('Department deleted successfully');
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        toast.error(result?.message || 'Department could not be deleted');
+        return;
+      }
+
+      toast.success(result.message || 'Department deleted successfully');
       setDeleteDialogOpen(false);
-      refetch();
-    } catch (error) {
+      setDeletingDept(null);
+      await refetch();
+    } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error('Failed to delete department');
+      toast.error(error?.message || 'Failed to delete department');
     } finally {
       setProcessing(false);
     }
@@ -307,7 +300,7 @@ export default function Departments() {
               <AlertDialogTitle className="font-playfair-display">Delete Department</AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to delete "{deletingDept?.name}"? This action cannot be undone.
-                Departments with assigned employees cannot be deleted.
+                If any user is assigned to this department, the system will block deletion and show the exact reason.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
