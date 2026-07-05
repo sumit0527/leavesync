@@ -37,3 +37,25 @@ export function formatManagementScope(profile?: { role?: string | null; college_
 export function sameCollegeUnit(a?: string | null, b?: string | null) {
   return Boolean(a && b && a === b);
 }
+
+
+export type ManagementSectionValue = 'all' | `${CollegeUnit}-staff` | `${CollegeUnit}-admin`;
+
+export const MANAGEMENT_SECTIONS: { value: ManagementSectionValue; label: string; unit?: CollegeUnit; group?: 'staff' | 'admin' }[] = [
+  { value: 'all', label: 'All Current Records' },
+  { value: 'senior-staff', label: 'Senior Staff', unit: 'senior', group: 'staff' },
+  { value: 'senior-admin', label: 'Senior Principal / UH', unit: 'senior', group: 'admin' },
+  { value: 'junior-staff', label: 'Junior Staff', unit: 'junior', group: 'staff' },
+  { value: 'junior-admin', label: 'Junior Principal / UH', unit: 'junior', group: 'admin' },
+  { value: 'pharmacy-staff', label: 'Pharmacy Staff', unit: 'pharmacy', group: 'staff' },
+  { value: 'pharmacy-admin', label: 'Pharmacy Principal / UH', unit: 'pharmacy', group: 'admin' },
+];
+
+export function formatRoleForManagement(role?: string | null, designation?: string | null) {
+  const normalized = String(role ?? '').toLowerCase();
+  if (normalized === 'staff') return 'Staff';
+  if (normalized === 'admin' || normalized === 'principal') return formatAdminDesignation(designation);
+  if (normalized === 'main_admin' || normalized === 'director') return 'Director';
+  if (normalized === 'viewer') return 'Viewer';
+  return 'User';
+}
