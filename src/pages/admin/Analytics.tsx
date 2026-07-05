@@ -22,6 +22,7 @@ import { downloadTablePdf } from '@/lib/pdf-report';
 import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 interface DepartmentStats {
+  unit: string;
   department: string;
   total: number;
   approved: number;
@@ -134,11 +135,13 @@ export default function Analytics() {
 
       const deptMap = new Map<string, DepartmentStats>();
       departmentRowsSource.forEach((app: any) => {
+        const unitName = formatCollegeUnit(app.staff?.college_unit);
         const deptName = app.staff?.department?.name || 'No Department';
-        if (!deptMap.has(deptName)) {
-          deptMap.set(deptName, { department: deptName, total: 0, approved: 0, rejected: 0, pending: 0 });
+        const deptKey = `${unitName}::${deptName}`;
+        if (!deptMap.has(deptKey)) {
+          deptMap.set(deptKey, { unit: unitName, department: deptName, total: 0, approved: 0, rejected: 0, pending: 0 });
         }
-        const dept = deptMap.get(deptName)!;
+        const dept = deptMap.get(deptKey)!;
         dept.total++;
         if (app.status === 'approved') dept.approved++;
         else if (app.status === 'rejected') dept.rejected++;
@@ -181,6 +184,7 @@ export default function Analytics() {
 
   const downloadAnalytics = () => {
     const deptRows = departmentStats.map(d => ({
+      unit: d.unit,
       department: d.department,
       total: d.total,
       approved: d.approved,
@@ -198,6 +202,7 @@ export default function Analytics() {
       deptRows,
       ltRows,
       selectedYear,
+      selectedUnit === 'all' ? 'All Units' : formatCollegeUnit(selectedUnit),
     );
     downloadWorkbook(wb, `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
@@ -210,6 +215,7 @@ export default function Analytics() {
       ['Rejected', stats.rejected],
     ];
     const departmentRows = departmentStats.map((d) => [
+      d.unit,
       d.department,
       d.total,
       d.approved,
@@ -224,7 +230,7 @@ export default function Analytics() {
       headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
       rows: [
         ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
-        ['Department-wise Applications', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
+        ['Department-wise Applications', 'Unit', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
         ...departmentRows.map((r) => ['Department', ...r]),
         ['Leave Type Usage', 'Leave Type', 'Count', 'Percentage', '', '', ''],
         ...leaveTypeRows.map((r) => ['Leave Type', ...r, '', '', '']),
@@ -468,6 +474,7 @@ export default function Analytics() {
               <table className="w-full min-w-max">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-sm font-medium">Unit</th>
                     <th className="whitespace-nowrap px-4 py-3 text-left text-sm font-medium">Department</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium">Total</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-emerald-500">Approved</th>
@@ -479,6 +486,7 @@ export default function Analytics() {
                 <tbody>
                   {departmentStats.map((dept, i) => (
                     <tr key={i} className="border-b border-border hover:bg-muted/30 transition-colors">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">{dept.unit}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm font-medium">{dept.department}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold">{dept.total}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-emerald-500">{dept.approved}</td>
@@ -490,7 +498,7 @@ export default function Analytics() {
                     </tr>
                   ))}
                   {departmentStats.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">{loading ? 'Loading…' : 'No data yet'}</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">{loading ? 'Loading…' : 'No data yet'}</td></tr>
                   )}
                 </tbody>
               </table>
