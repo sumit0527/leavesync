@@ -18,6 +18,7 @@ export interface Department {
   id: string;
   name: string;
   description: string | null;
+  college_unit?: CollegeUnit | null;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +98,8 @@ export interface Notification {
   message: string;
   type: string;
   related_application_id: string | null;
+  college_unit?: CollegeUnit | null;
+  unit_label?: string | null;
   is_read: boolean;
   created_at: string;
 }
