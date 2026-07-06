@@ -38,15 +38,15 @@ export default function Notifications() {
   return (
     <StaffLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{isPrincipal ? 'Principal Leave Notifications' : 'Notifications'}</h1>
-            <p className="mt-2 text-muted-foreground">{isPrincipal ? 'Only your own Principal leave/account updates appear here' : 'Stay updated on your leave applications'}</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-playfair-display font-bold leading-tight gradient-text sm:text-3xl">{isPrincipal ? 'Principal Leave Notifications' : 'Notifications'}</h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">{isPrincipal ? 'Only your own Principal leave/account updates appear here' : 'Stay updated on your leave applications'}</p>
           </div>
           {visibleNotifications.some(n => !n.is_read) && (
-            <Button onClick={markVisibleAsRead} variant="secondary">
+            <Button onClick={markVisibleAsRead} variant="secondary" size="sm" className="w-full shrink-0 whitespace-normal text-center sm:w-auto sm:whitespace-nowrap">
               <CheckCheck className="mr-2 h-4 w-4" />
-              Mark All as Read
+              Mark all read
             </Button>
           )}
         </div>
@@ -72,18 +72,18 @@ export default function Notifications() {
                 className={`transition-all ${!notification.is_read ? 'border-primary' : ''}`}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle className="text-base">{notification.title}</CardTitle>
-                    {!notification.is_read && <Badge variant="default">New</Badge>}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <CardTitle className="break-words text-sm leading-snug sm:text-base">{notification.title}</CardTitle>
+                    {!notification.is_read && <Badge variant="default" className="w-fit">New</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{notification.message}</p>
+                  <p className="break-words text-sm leading-relaxed text-muted-foreground">{notification.message}</p>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
                   </p>
                   {!notification.is_read && (
-                    <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
+                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => markAsRead(notification.id)}>
                       Mark as Read
                     </Button>
                   )}
