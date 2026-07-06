@@ -297,3 +297,53 @@
   }
 }
 
+
+
+/* Final responsive polish: keep buttons, chips, filters, tables and charts calm on small screens. */
+@layer utilities {
+  .responsive-actions {
+    @apply flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center;
+  }
+
+  .responsive-actions > * {
+    @apply w-full sm:w-auto;
+  }
+
+  .responsive-card-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3;
+  }
+}
+
+@layer base {
+  button,
+  [role='button'],
+  a {
+    min-width: 0;
+  }
+
+  button svg,
+  [role='button'] svg {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 640px) {
+    h1 {
+      line-height: 1.15;
+    }
+
+    .recharts-wrapper,
+    .recharts-responsive-container {
+      max-width: 100% !important;
+    }
+
+    [data-radix-select-content],
+    [data-radix-dropdown-menu-content],
+    [data-radix-popover-content] {
+      max-width: calc(100vw - 1rem) !important;
+    }
+
+    .overflow-x-auto table {
+      min-width: 720px;
+    }
+  }
+}
