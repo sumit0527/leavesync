@@ -37,9 +37,17 @@ export default function AdminDashboard() {
 
     const { count: empCount } = await empQuery;
 
-    const { count: deptCount } = await supabase
+    let deptQuery = supabase
       .from('departments')
       .select('*', { count: 'exact', head: true });
+
+    // Director and Viewer see the total department count across all units.
+    // Principal/UH must see only their own unit department count.
+    if (isPrincipal && !isDirectorView) {
+      deptQuery = deptQuery.eq('college_unit', (profile as any)?.college_unit);
+    }
+
+    const { count: deptCount } = await deptQuery;
 
     setEmployeeCount(empCount ?? 0);
     setDepartmentCount(deptCount ?? 0);
