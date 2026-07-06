@@ -340,10 +340,19 @@ Deno.serve(async (req) => {
       applicantEmail: tokenRow.target_table === 'profiles' ? (applicantEmailSent ? 'Sent' : 'Not confirmed') : (leaveApplicantEmailSent ? 'Sent' : 'Not confirmed'),
     });
   } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null
+          ? JSON.stringify(error)
+          : String(error);
+
+    console.error('Email action failed:', errorMessage, error);
+
     return redirectToResult({
       result: 'error',
       title: 'Action Failed',
-      message: error instanceof Error ? error.message : 'Something went wrong while handling this request.',
+      message: errorMessage || 'Something went wrong while handling this request.',
       tone: 'danger',
     });
   }
