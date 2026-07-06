@@ -10,6 +10,11 @@ export function useLeaveAllocations(staffId?: string) {
     if (!staffId) { setLoading(false); return; }
     try {
       setLoading(true);
+      // Year-safe guard: when a new year starts, ensure this user has that year's allocation rows before reading balances.
+      await supabase.rpc('initialize_staff_leave_allocations', {
+        p_staff_id: staffId,
+        p_year: new Date().getFullYear(),
+      });
       const { data, error } = await supabase
         .from('staff_leave_allocations')
         .select('*, leave_type:leave_types(id, name, annual_allocation, description)')
