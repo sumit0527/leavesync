@@ -36,15 +36,15 @@ export default function AdminNotifications() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-playfair-display font-bold gradient-text">{pageTitle}</h1>
-            <p className="mt-2 text-muted-foreground">{description}</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-playfair-display font-bold leading-tight gradient-text sm:text-3xl">{pageTitle}</h1>
+            <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground sm:text-base">{description}</p>
           </div>
           {!isViewer && notifications.some(n => !n.is_read) && (
-            <Button onClick={markAllAsRead} variant="secondary">
+            <Button onClick={markAllAsRead} variant="secondary" size="sm" className="w-full shrink-0 whitespace-normal text-center sm:w-auto sm:whitespace-nowrap">
               <CheckCheck className="mr-2 h-4 w-4" />
-              Mark All as Read
+              Mark all read
             </Button>
           )}
         </div>
@@ -77,13 +77,13 @@ export default function AdminNotifications() {
                 className={`transition-all ${!notification.is_read ? 'border-primary/70 bg-primary/5' : ''}`}
               >
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
                       <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
                         <ClipboardCheck className="h-4 w-4" />
                       </div>
                       <div>
-                        <CardTitle className="text-base">{notification.title}</CardTitle>
+                        <CardTitle className="break-words text-sm leading-snug sm:text-base">{notification.title}</CardTitle>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
                         </p>
@@ -92,14 +92,14 @@ export default function AdminNotifications() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                       {(notification as any).college_unit && <Badge variant="outline">{formatCollegeUnit((notification as any).college_unit)}</Badge>}
                       {!notification.is_read && <Badge variant="default">Pending</Badge>}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{notification.message}</p>
+                  <p className="break-words text-sm leading-relaxed text-muted-foreground">{notification.message}</p>
                   {isRequestInbox && (
                     <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
                       {isViewer
@@ -108,7 +108,7 @@ export default function AdminNotifications() {
                     </p>
                   )}
                   {!isViewer && !notification.is_read && (
-                    <Button size="sm" variant="outline" onClick={() => markAsRead(notification.id)}>
+                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => markAsRead(notification.id)}>
                       Mark as Read
                     </Button>
                   )}
