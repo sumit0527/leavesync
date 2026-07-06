@@ -44,7 +44,14 @@ export default function AllApplications() {
   const { departments } = useDepartments();
   const { leaveTypes } = useLeaveTypes();
   const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
+  const yearOptions = Array.from(
+    new Set([
+      currentYear,
+      ...applications
+        .map((app) => new Date(app.start_date).getFullYear())
+        .filter((year) => Number.isFinite(year)),
+    ]),
+  ).sort((a, b) => b - a);
   const [filter, setFilter] = useState('all');
   const [filterYear, setFilterYear] = useState('all');
   const [searchName, setSearchName] = useState('');
