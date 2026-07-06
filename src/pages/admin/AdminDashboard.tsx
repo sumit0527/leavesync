@@ -27,12 +27,18 @@ export default function AdminDashboard() {
     let empQuery = supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
-      .eq('role', 'staff')
       .eq('approval_status', 'approved')
       .or('employment_status.is.null,employment_status.neq.past');
 
-    if (isPrincipal && !isDirectorView) {
-      empQuery = empQuery.eq('college_unit', (profile as any)?.college_unit);
+    if (isDirectorView) {
+      // Director and Viewer need one overall user count across all units:
+      // all approved Staff + Principal/UH accounts.
+      empQuery = empQuery.in('role', ['staff', 'admin', 'principal']);
+    } else {
+      // Principal/UH should only see staff count for their own unit.
+      empQuery = empQuery
+        .eq('role', 'staff')
+        .eq('college_unit', (profile as any)?.college_unit);
     }
 
     const { count: empCount } = await empQuery;
@@ -116,7 +122,7 @@ export default function AdminDashboard() {
 
   const dashboardCards = [
     { title: 'Pending Leaves', value: scopedStats.pending, note: isDirectorView ? 'Principal + staff leaves' : 'Staff leaves', icon: Clock, accent: 'text-yellow-600', primary: true },
-    { title: 'Total Employees', value: employeeCount, note: 'Active staff', icon: Users, accent: 'text-primary' },
+    { title: isDirectorView ? 'Overall Users' : 'Total Employees', value: employeeCount, note: isDirectorView ? 'Active staff + Principal/UH' : 'Active staff', icon: Users, accent: 'text-primary' },
     { title: 'Departments', value: departmentCount, note: 'Active departments', icon: Building2, accent: 'text-muted-foreground' },
     { title: 'Total Applications', value: scopedStats.total, note: isDirectorView ? 'Principal + staff leaves' : 'Staff leaves', icon: FileCheck, accent: 'text-muted-foreground' },
     { title: 'Approved', value: scopedStats.approved, note: 'Applications', icon: CheckCircle, accent: 'text-green-600' },
