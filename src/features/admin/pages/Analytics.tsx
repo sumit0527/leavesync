@@ -82,7 +82,11 @@ export default function Analytics() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedUnit, setSelectedUnit] = useState<'all' | CollegeUnit>('all');
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
+  const firstOperationalYear = 2026;
+  const yearOptions = Array.from(
+    { length: Math.max(1, currentYear - firstOperationalYear + 1) },
+    (_, i) => currentYear - i,
+  );
 
   const [stats, setStats] = useState({ total: 0, approved: 0, rejected: 0, pending: 0 });
   const [departmentStats, setDepartmentStats] = useState<DepartmentStats[]>([]);
