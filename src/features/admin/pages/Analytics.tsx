@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { generateAnalyticsReport, downloadWorkbook } from '@/lib/excel-report';
-import { downloadTablePdf } from '@/lib/pdf-report';
+import { downloadSectionedPdf } from '@/lib/pdf-report';
 import { COLLEGE_UNITS, formatCollegeUnit, type CollegeUnit } from '@/lib/college-units';
 
 interface DepartmentStats {
@@ -213,10 +213,10 @@ export default function Analytics() {
 
   const exportToPDF = () => {
     const summaryRows = [
-      ['Total Applications', stats.total],
-      ['Approved', stats.approved],
-      ['Pending', stats.pending],
-      ['Rejected', stats.rejected],
+      ['Total Applications', stats.total, '100%'],
+      ['Approved Applications', stats.approved, stats.total > 0 ? `${((stats.approved / stats.total) * 100).toFixed(1)}%` : '0%'],
+      ['Pending Applications', stats.pending, stats.total > 0 ? `${((stats.pending / stats.total) * 100).toFixed(1)}%` : '0%'],
+      ['Rejected Applications', stats.rejected, stats.total > 0 ? `${((stats.rejected / stats.total) * 100).toFixed(1)}%` : '0%'],
     ];
     const departmentRows = departmentStats.map((d) => [
       d.unit,
@@ -228,16 +228,29 @@ export default function Analytics() {
       d.total > 0 ? `${((d.approved / d.total) * 100).toFixed(1)}%` : '0%',
     ]);
     const leaveTypeRows = leaveTypeStats.map((t) => [t.leave_type, t.count, `${t.percentage}%`]);
-    downloadTablePdf({
+
+    downloadSectionedPdf({
       title: `Analytics Report ${selectedYear}`,
-      subtitle: `Summary + Department-wise + Leave Type Usage${selectedUnit !== 'all' ? ` • ${formatCollegeUnit(selectedUnit)}` : ''}`, 
-      headers: ['Section', 'Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
-      rows: [
-        ...summaryRows.map((r) => ['Summary', r[0], r[1], '', '', '']),
-        ['Department-wise Applications', 'Unit', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
-        ...departmentRows.map((r) => ['Department', ...r]),
-        ['Leave Type Usage', 'Leave Type', 'Count', 'Percentage', '', '', ''],
-        ...leaveTypeRows.map((r) => ['Leave Type', ...r, '', '', '']),
+      subtitle: `${selectedUnit !== 'all' ? formatCollegeUnit(selectedUnit) : 'All Units'} • Vertical report`,
+      orientation: 'portrait',
+      sections: [
+        {
+          title: 'Application Summary',
+          headers: ['Metric', 'Count', 'Percentage'],
+          rows: summaryRows,
+        },
+        {
+          title: 'Department-wise Applications',
+          headers: ['Unit', 'Department', 'Total', 'Approved', 'Pending', 'Rejected', 'Approval %'],
+          rows: departmentRows,
+          emptyMessage: 'No department-wise application data found.',
+        },
+        {
+          title: 'Leave Type Usage',
+          headers: ['Leave Type', 'Applications Count', 'Percentage'],
+          rows: leaveTypeRows,
+          emptyMessage: 'No leave type data found.',
+        },
       ],
       filename: `analytics_${selectedYear}_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
     });
