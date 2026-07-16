@@ -47,7 +47,7 @@ interface DirectorReportRow {
   status: string;
   handledBy: string;
   createdDate: string;
-  leaveBalance: string;
+  leaveBalances: Record<string, string>;
 }
 
 const formatLeaveDuration = (app: any) => {
@@ -127,15 +127,15 @@ export default function AdminCalendar() {
   };
 
   const buildBalanceMap = (allocations: any[]) => {
-    const map = new Map<string, string>();
+    const map = new Map<string, Record<string, string>>();
     allocations.forEach(a => {
       const name = a.leave_type?.name ?? 'Leave';
       const total = Number(a.total_allocated ?? 0);
       const used = Number(a.used ?? 0);
       const remaining = Number(a.remaining ?? (total - used));
-      const current = map.get(a.staff_id);
-      const part = `${name}: Total ${total}, Used ${used}, Left ${remaining}`;
-      map.set(a.staff_id, current ? `${current}; ${part}` : part);
+      const current = map.get(a.staff_id) ?? {};
+      current[name] = `Used ${used} / Left ${remaining} / Total ${total}`;
+      map.set(a.staff_id, current);
     });
     return map;
   };
@@ -185,26 +185,8 @@ export default function AdminCalendar() {
 
     return people.flatMap((person: any) => {
       const personApps = appsByStaff.get(person.id) ?? [];
-      const baseBalance = balanceMap.get(person.id) ?? `Overall Balance: ${person.leave_balance ?? 'N/A'}`;
-      if (personApps.length === 0) {
-        return [{
-          name: clean(person.full_name),
-          unit: formatCollegeUnit(person.college_unit),
-          designation: scope === 'staff' ? 'Staff' : formatAdminDesignation(person.admin_designation),
-          department: scope === 'staff' ? clean(person.department?.name) : 'N/A',
-          email: clean(person.email),
-          phone: clean(person.phone),
-          leaveType: 'No leave applications',
-          startDate: 'N/A',
-          endDate: 'N/A',
-          duration: 'N/A',
-          status: clean(person.approval_status),
-          handledBy: 'N/A',
-          createdDate: formatDateTime(person.created_at),
-          leaveBalance: baseBalance,
-        }];
-      }
-
+      const personBalances = balanceMap.get(person.id) ?? {};
+      if (personApps.length === 0) return [];
       return personApps.map((app: any) => ({
         name: clean(person.full_name),
         unit: formatCollegeUnit(person.college_unit),
@@ -219,38 +201,26 @@ export default function AdminCalendar() {
         status: clean(app.status),
         handledBy: app.reviewer?.full_name ? clean(app.reviewer.full_name) : app.status === 'pending' ? 'Pending Review' : 'N/A',
         createdDate: formatDateTime(app.created_at),
-        leaveBalance: baseBalance,
+        leaveBalances: personBalances,
       }));
     });
   };
 
+  const getLeaveBalanceColumns = (rows: DirectorReportRow[]) => {
+    return Array.from(new Set(rows.flatMap((row) => Object.keys(row.leaveBalances || {})))).sort();
+  };
+
   const exportDirectorReportExcel = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
-    const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
+    const title = scope === 'staff' ? 'Staff Leave Activity Report' : 'Principal / UH Leave Activity Report';
+    const leaveBalanceCols = getLeaveBalanceColumns(rows);
+    const headers = ['Name', 'Unit', 'Designation', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', ...leaveBalanceCols];
     const aoa = [
       ['LeaveSync', title],
       ['Generated At', format(new Date(), 'dd/MM/yyyy HH:mm')],
+      ['Note', 'Only people who have leave applications are included. Each leave type balance is shown in a separate column.'],
       [],
-      ['Name', 'Unit', 'Designation', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
-      ...rows.map(r => [r.name, r.unit, r.designation, r.department, r.email, r.phone, r.leaveType, r.startDate, r.endDate, r.duration, r.status, r.handledBy, r.createdDate, r.leaveBalance]),
-    ];
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!autofilter'] = { ref: 'A4:N4' };
-    ws['!cols'] = [
-      { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
-      { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 48 },
-    ];
-    XLSX.utils.book_append_sheet(wb, ws, scope === 'staff' ? 'Staff Report' : 'Principal Report');
-    XLSX.writeFile(wb, `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
-
-  const exportDirectorReportPDF = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
-    const title = scope === 'staff' ? 'Staff Details and Leave Activity Report' : 'Principal Details and Leave Activity Report';
-    downloadTablePdf({
-      title,
-      subtitle: scope === 'staff' ? 'Staff records with leave activity' : 'Principal records with leave activity',
-      headers: ['Name', 'Unit', 'Designation', 'Department', 'Email', 'Phone', 'Leave Type', 'Start Date', 'End Date', 'Full/Half Day', 'Status', 'Approved/Rejected By', 'Created Date', 'Leave Balance'],
-      rows: rows.map((r) => [
+      headers,
+      ...rows.map(r => [
         r.name,
         r.unit,
         r.designation,
@@ -264,10 +234,41 @@ export default function AdminCalendar() {
         r.status,
         r.handledBy,
         r.createdDate,
-        r.leaveBalance,
+        ...leaveBalanceCols.map((col) => r.leaveBalances?.[col] ?? '-'),
       ]),
-      filename: `${scope}_details_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!autofilter'] = { ref: `A5:${XLSX.utils.encode_col(headers.length - 1)}5` };
+    ws['!cols'] = [
+      { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+      { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, ...leaveBalanceCols.map(() => ({ wch: 24 })),
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, scope === 'staff' ? 'Staff Report' : 'Principal Report');
+    XLSX.writeFile(wb, `${scope}_leave_activity_report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const exportDirectorReportPDF = (rows: DirectorReportRow[], scope: DirectorReportScope) => {
+    const title = scope === 'staff' ? 'Staff Leave Activity Report' : 'Principal / UH Leave Activity Report';
+    const leaveBalanceCols = getLeaveBalanceColumns(rows);
+    downloadTablePdf({
+      title,
+      subtitle: scope === 'staff' ? 'Staff with leave activity only' : 'Principal/UH with leave activity only',
+      headers: ['Name', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Status', ...leaveBalanceCols],
+      rows: rows.map((r) => [
+        r.name,
+        r.unit,
+        r.designation,
+        r.department,
+        r.leaveType,
+        r.startDate,
+        r.endDate,
+        r.status,
+        ...leaveBalanceCols.map((col) => r.leaveBalances?.[col] ?? '-'),
+      ]),
+      filename: `${scope}_leave_activity_report_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
       orientation: 'landscape',
+      emptyMessage: 'No leave applications found for this report.',
     });
   };
 
