@@ -75,71 +75,98 @@ export function downloadTablePdf({
   doc.save(filename);
 }
 
-export const downloadSectionedPdf = (
-  title: string,
-  sections: Array<{
-    title: string;
-    columns: string[];
-    rows: Array<Array<string | number | null | undefined>>;
-  }>,
-  filename = 'report.pdf'
-) => {
-  const doc = new jsPDF();
+export interface PdfSection {
+  title: string;
+  headers: string[];
+  rows: (string | number | boolean | null | undefined)[][];
+  emptyMessage?: string;
+}
 
+export interface PdfSectionedOptions {
+  title: string;
+  subtitle?: string;
+  sections: PdfSection[];
+  filename: string;
+  orientation?: 'portrait' | 'landscape';
+}
+
+export function downloadSectionedPdf({
+  title,
+  subtitle,
+  sections,
+  filename,
+  orientation = 'portrait',
+}: PdfSectionedOptions) {
+  const doc = new jsPDF({ orientation, unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  let y = 18;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 32;
+  let y = 32;
 
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(title, pageWidth / 2, y, { align: 'center' });
+  const drawHeader = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(30);
+    doc.text('G.D. Sawant College of Technology — leaveSYNC', pageWidth / 2, 32, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(title, pageWidth / 2, 50, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(subtitle ? `${subtitle} | Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}` : `Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 66, { align: 'center' });
+    y = 92;
+  };
 
-  y += 10;
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, y);
-
-  y += 10;
+  drawHeader();
 
   sections.forEach((section, index) => {
-    if (y > 260) {
+    if (index > 0 && y > pageHeight - 180) {
       doc.addPage();
-      y = 18;
+      drawHeader();
     }
 
-    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(44, 31, 8);
     doc.text(section.title, margin, y);
+    y += 10;
 
-    y += 6;
+    const body = section.rows.length > 0 ? section.rows : [[section.emptyMessage || 'No records found.']];
+    const head = section.rows.length > 0 ? [section.headers] : [[section.emptyMessage || 'No records found.']];
 
     autoTable(doc, {
       startY: y,
-      head: [section.columns],
-      body: section.rows.map((row) =>
-        row.map((cell) => (cell === null || cell === undefined ? '-' : String(cell)))
-      ),
+      head,
+      body: section.rows.length > 0 ? body : [],
+      theme: 'grid',
+      margin: { left: margin, right: margin },
       styles: {
+        font: 'helvetica',
         fontSize: 8,
-        cellPadding: 3,
+        cellPadding: 4,
         overflow: 'linebreak',
+        valign: 'middle',
+        lineColor: [210, 210, 210],
+        lineWidth: 0.4,
       },
       headStyles: {
+        fillColor: [44, 31, 8],
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
+        halign: 'center',
+        lineColor: [212, 175, 55],
+        lineWidth: 0.6,
       },
-      margin: { left: margin, right: margin },
-      tableWidth: 'auto',
-      theme: 'grid',
+      alternateRowStyles: { fillColor: [250, 248, 240] },
+      bodyStyles: { textColor: [30, 30, 30] },
+      didDrawPage: () => {
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text(`Page ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 18, { align: 'right' });
+      },
     });
 
-    y = (doc as any).lastAutoTable.finalY + 12;
-
-    if (index < sections.length - 1 && y > 250) {
-      doc.addPage();
-      y = 18;
-    }
+    y = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 26 : y + 80;
   });
 
   doc.save(filename);
-};
+}
