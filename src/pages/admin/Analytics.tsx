@@ -404,7 +404,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
-          {/* Quick stats breakdown */}
+          {/* Quick stats breakdown */} 
           <Card>
             <CardHeader>
               <CardTitle className="font-playfair-display">Quick Summary</CardTitle>
