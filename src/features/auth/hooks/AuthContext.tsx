@@ -215,6 +215,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('This username is already taken. Please choose another username.');
       }
 
+      const contactFilters: string[] = [];
+      if (cleanedEmail) contactFilters.push(`email.eq.${cleanedEmail}`);
+      if (cleanedPhone) contactFilters.push(`phone.eq.${cleanedPhone}`);
+
+      if (contactFilters.length > 0) {
+        const { data: duplicateContact, error: duplicateContactError } = await supabase
+          .from('profiles')
+          .select('id, username, email, phone')
+          .or(contactFilters.join(','))
+          .in('approval_status', ['pending', 'approved'])
+          .maybeSingle();
+
+        if (duplicateContactError) {
+          console.error('Duplicate contact check failed:', duplicateContactError);
+          throw new Error('Could not verify duplicate registration details. Please contact administration.');
+        }
+
+        if (duplicateContact) {
+          const sameEmail = cleanedEmail && String(duplicateContact.email ?? '').toLowerCase() === cleanedEmail;
+          const samePhone = cleanedPhone && String(duplicateContact.phone ?? '').replace(/\s/g, '') === cleanedPhone;
+          if (sameEmail && samePhone) {
+            throw new Error('An account with the same email and phone number already exists. Please login or contact administration.');
+          }
+          if (sameEmail) {
+            throw new Error('An account with this email already exists. Please login or contact administration.');
+          }
+          if (samePhone) {
+            throw new Error('An account with this phone number already exists. Please login or contact administration.');
+          }
+          throw new Error('An account with the same registration details already exists. Please login or contact administration.');
+        }
+      }
+
       const emailAddress = toInternalAuthEmail(cleanedUsername);
       const { error } = await supabase.auth.signUp({
         email: emailAddress,
