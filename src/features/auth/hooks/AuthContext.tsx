@@ -21,7 +21,6 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 }
 
 
-
 async function getAdminSecretKey(): Promise<string> {
   const { data } = await supabase
     .from('admin_settings')
