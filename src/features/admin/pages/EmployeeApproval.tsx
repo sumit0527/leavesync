@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { CheckCircle, XCircle, Loader2, Users, UserX, RotateCcw } from 'lucide-react';
 import type { Profile } from '@/types';
 import { sendRegistrationDecisionEmail } from '@/lib/email-notifications';
-import { ADMIN_DESIGNATIONS, COLLEGE_UNITS, MANAGEMENT_SECTIONS, formatAdminDesignation, formatCollegeUnit, formatRoleForManagement, type AdminDesignation, type CollegeUnit, type ManagementSectionValue } from '@/lib/college-units';
+import { ADMIN_DESIGNATIONS, MANAGEMENT_SECTIONS, formatAdminDesignation, formatCollegeUnit, formatRoleForManagement, type AdminDesignation, type ManagementSectionValue } from '@/lib/college-units';
 
 type EmployeeRecord = Profile & {
   employment_status?: 'active' | 'past';
@@ -173,27 +173,6 @@ export default function EmployeeApproval() {
     } catch (err) {
       console.error('Failed to reject employee:', err);
       toast.error(`Failed to reject ${managedRoleLabel.toLowerCase()}`);
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleUpdateCollegeUnit = async (employeeId: string, collegeUnit: CollegeUnit) => {
-    if (!isMainAdmin || isViewer) return;
-
-    setProcessingId(employeeId);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ college_unit: collegeUnit, updated_at: new Date().toISOString() })
-        .eq('id', employeeId);
-
-      if (error) throw error;
-      toast.success('College unit updated');
-      fetchEmployees();
-    } catch (err) {
-      console.error('Failed to update college unit:', err);
-      toast.error('Failed to update college unit');
     } finally {
       setProcessingId(null);
     }
@@ -462,24 +441,9 @@ export default function EmployeeApproval() {
                           )}
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          {isMainAdmin && !isViewer ? (
-                            <Select
-                              value={(employee as any).college_unit || ''}
-                              onValueChange={(value) => handleUpdateCollegeUnit(employee.id, value as CollegeUnit)}
-                              disabled={processingId === employee.id}
-                            >
-                              <SelectTrigger className="h-8 w-[170px]">
-                                <SelectValue placeholder="Assign unit" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COLLEGE_UNITS.map((unit) => (
-                                  <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            formatCollegeUnit((employee as any).college_unit)
-                          )}
+                          <Badge variant="outline" className="whitespace-nowrap">
+                            {formatCollegeUnit((employee as any).college_unit)}
+                          </Badge>
                         </td>
                         {(!isViewingPrincipals || isDirectorManagingPrincipals) && (
                           <td className="p-3 whitespace-nowrap">{employee.role === 'staff' ? (employee.department?.name || 'No department selected') : '-'}</td>
