@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/db/supabase';
 import { formatAdminDesignation, formatCollegeUnit } from '@/lib/college-units';
+import DirectorAiAssistant from '@/components/admin/DirectorAiAssistant';
 
 const compactCardClass = 'rounded-xl border-border/80 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
@@ -311,6 +312,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
       </div>
+      {isDirectorView && <DirectorAiAssistant />}
     </AdminLayout>
   );
 }
