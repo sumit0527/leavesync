@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/db/supabase';
-import { formatCollegeUnit, formatRoleForManagement } from '@/lib/college-units';
+import { formatAdminDesignation, formatCollegeUnit, formatRoleForManagement } from '@/lib/college-units';
 
 type ChatRole = 'assistant' | 'user';
 
@@ -20,7 +20,6 @@ type ProfileRow = {
   full_name: string;
   username?: string | null;
   email?: string | null;
-  phone?: string | null;
   role?: string | null;
   approval_status?: string | null;
   college_unit?: string | null;
@@ -63,17 +62,13 @@ type AiSnapshot = {
   generatedAt: Date;
 };
 
-type UnitKey = 'junior' | 'senior' | 'pharmacy';
-type ProfileStatus = 'pending' | 'approved' | 'rejected';
-type ProfileRoleFilter = 'staff' | 'principal' | 'uh' | 'admin';
-
-const units: UnitKey[] = ['junior', 'senior', 'pharmacy'];
+const units = ['junior', 'senior', 'pharmacy'] as const;
 
 const quickPrompts = [
-  'How many pending staff in Pharmacy?',
   'Today summary',
-  'Pending leave requests',
+  'Pending approvals',
   'Unit-wise users',
+  'This week leaves',
   'Low leave balance',
   '24-hour pending staff leaves',
 ];
@@ -83,7 +78,7 @@ function roleLabel(profile?: ProfileRow | null) {
 }
 
 function normalize(text: string) {
-  return text.toLowerCase().replace(/college/g, '').replace(/collage/g, '').replace(/\s+/g, ' ').trim();
+  return text.toLowerCase().trim();
 }
 
 function inDateRange(dateValue: string, from: Date, to: Date) {
@@ -120,143 +115,6 @@ function countByUnit<T>(items: T[], getItemUnit: (item: T) => string | null | un
 function bullet(lines: string[]) {
   if (!lines.length) return 'No matching records found.';
   return lines.map((line) => `• ${line}`).join('\n');
-}
-
-function extractUnit(q: string): UnitKey | null {
-  if (q.includes('junior')) return 'junior';
-  if (q.includes('senior')) return 'senior';
-  if (q.includes('pharmacy') || q.includes('pharma')) return 'pharmacy';
-  return null;
-}
-
-function extractStatus(q: string): ProfileStatus | null {
-  if (q.includes('pending') || q.includes('waiting') || q.includes('not approved')) return 'pending';
-  if (q.includes('approved') || q.includes('active')) return 'approved';
-  if (q.includes('rejected')) return 'rejected';
-  return null;
-}
-
-function extractProfileRole(q: string): ProfileRoleFilter | null {
-  if (q.includes('staff') || q.includes('employee') || q.includes('employees')) return 'staff';
-  if (q.includes('principal')) return 'principal';
-  if (q.includes(' uh') || q.endsWith('uh') || q.includes('unit head') || q.includes('head')) return 'uh';
-  if (q.includes('admin') || q.includes('principal/uh') || q.includes('principal uh')) return 'admin';
-  return null;
-}
-
-function isLeaveQuestion(q: string) {
-  return q.includes('leave') || q.includes('application') || q.includes('request') || q.includes('on leave') || q.includes('balance');
-}
-
-function isRegistrationQuestion(q: string) {
-  return q.includes('register') || q.includes('registration') || q.includes('account') || q.includes('user') || q.includes('employee') || q.includes('staff') || q.includes('principal') || q.includes('uh');
-}
-
-function shouldList(q: string) {
-  return q.includes('show') || q.includes('list') || q.includes('who') || q.includes('which') || q.includes('details') || q.includes('names');
-}
-
-function matchesProfileRole(profile: ProfileRow, role: ProfileRoleFilter | null) {
-  if (!role) return true;
-  const normalizedRole = String(profile.role ?? '').toLowerCase();
-  const designation = String(profile.admin_designation ?? '').toLowerCase();
-
-  if (role === 'staff') return normalizedRole === 'staff';
-  if (role === 'principal') return ['admin', 'principal'].includes(normalizedRole) && designation === 'principal';
-  if (role === 'uh') return ['admin', 'principal'].includes(normalizedRole) && designation === 'uh';
-  if (role === 'admin') return ['admin', 'principal'].includes(normalizedRole);
-  return true;
-}
-
-function matchesLeaveRole(leave: LeaveRow, role: ProfileRoleFilter | null) {
-  return matchesProfileRole((leave.staff ?? {}) as ProfileRow, role);
-}
-
-function listProfiles(profiles: ProfileRow[]) {
-  return profiles.slice(0, 12).map((profile) => {
-    const department = profile.department?.name ? `, ${profile.department.name}` : '';
-    return `${profile.full_name} - ${formatCollegeUnit(profile.college_unit)}, ${roleLabel(profile)}${department} (${profile.approval_status ?? 'unknown'})`;
-  });
-}
-
-function listLeaves(leaves: LeaveRow[]) {
-  return leaves.slice(0, 12).map((leave) => {
-    const start = format(parseISO(leave.start_date), 'dd MMM');
-    const end = format(parseISO(leave.end_date), 'dd MMM');
-    return `${formatPerson(leave.staff)} - ${leave.leave_type?.name ?? 'Leave'} from ${start} to ${end} (${leave.status ?? 'unknown'})`;
-  });
-}
-
-function buildSpecificProfileAnswer(q: string, snapshot: AiSnapshot) {
-  const unit = extractUnit(q);
-  const status = extractStatus(q);
-  const role = extractProfileRole(q);
-
-  let profiles = snapshot.profiles.filter(isActive);
-  if (unit) profiles = profiles.filter((profile) => profile.college_unit === unit);
-  if (status) profiles = profiles.filter((profile) => profile.approval_status === status);
-  if (role) profiles = profiles.filter((profile) => matchesProfileRole(profile, role));
-
-  const statusText = status ? `${status} ` : '';
-  const roleText = role ? `${role === 'admin' ? 'Principal / UH' : role.toUpperCase() === 'UH' ? 'UH' : role} ` : 'user ';
-  const unitText = unit ? `in ${formatCollegeUnit(unit)}` : 'across all units';
-
-  const lines = [`${formatCollegeUnit(unit)} ${statusText}${roleText}registrations/users: ${profiles.length}`.replace('Unit Not Assigned ', '').trim()];
-
-  if (!unit) {
-    lines.push(
-      ...countByUnit(profiles, (profile) => profile.college_unit).map(
-        ({ unit: unitKey, count }) => `${formatCollegeUnit(unitKey)}: ${count}`
-      )
-    );
-  }
-
-  if (shouldList(q)) {
-    lines.push('', `Matching ${roleText.trim()} records ${unitText}:`, bullet(listProfiles(profiles)));
-  }
-
-  return lines.join('\n');
-}
-
-function buildSpecificLeaveAnswer(q: string, snapshot: AiSnapshot) {
-  const unit = extractUnit(q);
-  const status = extractStatus(q);
-  const role = extractProfileRole(q);
-  const today = new Date();
-  const weekFrom = startOfWeek(today, { weekStartsOn: 1 });
-  const weekTo = endOfWeek(today, { weekStartsOn: 1 });
-  const monthFrom = startOfMonth(today);
-
-  let leaves = snapshot.leaves;
-  if (unit) leaves = leaves.filter((leave) => getUnit(leave.staff) === unit);
-  if (status) leaves = leaves.filter((leave) => leave.status === status);
-  if (role) leaves = leaves.filter((leave) => matchesLeaveRole(leave, role));
-  if (q.includes('today')) {
-    leaves = leaves.filter((leave) => !isAfter(parseISO(leave.start_date), today) && !isBefore(parseISO(leave.end_date), today));
-  } else if (q.includes('week')) {
-    leaves = leaves.filter((leave) => inDateRange(leave.start_date, weekFrom, weekTo) || inDateRange(leave.end_date, weekFrom, weekTo));
-  } else if (q.includes('month')) {
-    leaves = leaves.filter((leave) => !isBefore(parseISO(leave.created_at), monthFrom));
-  }
-
-  const statusText = status ? `${status} ` : '';
-  const roleText = role ? `${role === 'admin' ? 'Principal / UH' : role.toUpperCase() === 'UH' ? 'UH' : role} ` : '';
-  const unitText = unit ? `in ${formatCollegeUnit(unit)}` : 'across all units';
-
-  const lines = [`${statusText}${roleText}leave applications ${unitText}: ${leaves.length}`];
-  if (!unit) {
-    lines.push(
-      ...countByUnit(leaves, (leave) => getUnit(leave.staff)).map(
-        ({ unit: unitKey, count }) => `${formatCollegeUnit(unitKey)}: ${count}`
-      )
-    );
-  }
-
-  if (shouldList(q) || leaves.length <= 8) {
-    lines.push('', 'Matching leave records:', bullet(listLeaves(leaves)));
-  }
-
-  return lines.join('\n');
 }
 
 function buildUnitUsers(snapshot: AiSnapshot) {
@@ -426,43 +284,29 @@ function buildDepartmentSummary(snapshot: AiSnapshot) {
   return ['Department setup:', ...lines].join('\n');
 }
 
-function buildSmartAnswer(question: string, snapshot: AiSnapshot) {
+function buildAnswer(question: string, snapshot: AiSnapshot) {
   const q = normalize(question);
-  const unit = extractUnit(q);
-  const status = extractStatus(q);
-  const role = extractProfileRole(q);
-
-  // Specific questions should get specific answers, not broad summaries.
-  // Example: "how many pending staff in pharmacy" -> only pending Pharmacy staff registrations.
-  if (unit || status || role) {
-    if (isLeaveQuestion(q) && (q.includes('leave') || q.includes('application') || q.includes('request') || q.includes('today') || q.includes('week') || q.includes('month'))) {
-      return buildSpecificLeaveAnswer(q, snapshot);
-    }
-
-    if (isRegistrationQuestion(q)) {
-      return buildSpecificProfileAnswer(q, snapshot);
-    }
-  }
 
   if (q.includes('today') || q.includes('current')) return buildTodaySummary(snapshot);
   if (q.includes('week')) return buildWeekSummary(snapshot);
   if (q.includes('month')) return buildMonthSummary(snapshot);
+  if (q.includes('pending') || q.includes('approval') || q.includes('waiting')) return buildPendingSummary(snapshot);
   if (q.includes('24') || q.includes('hour') || q.includes('director review')) return buildOlderThan24(snapshot);
   if (q.includes('low') || q.includes('balance') || q.includes('remaining')) return buildLowBalance(snapshot);
   if (q.includes('leave type') || q.includes('most used') || q.includes('usage')) return buildLeaveTypeUsage(snapshot);
   if (q.includes('department')) return buildDepartmentSummary(snapshot);
-  if (q.includes('pending') || q.includes('approval') || q.includes('waiting')) return buildPendingSummary(snapshot);
   if (q.includes('user') || q.includes('staff') || q.includes('principal') || q.includes('uh') || q.includes('unit')) {
     return ['Overall active approved users by unit:', ...buildUnitUsers(snapshot)].join('\n');
   }
 
   return [
-    'I can answer portal-specific questions using live LeaveSync data. Try asking like this:',
-    '• How many pending staff in Pharmacy?',
-    '• Show approved Principal/UH in Junior',
-    '• How many pending leaves in Senior?',
-    '• Which staff are on leave today?',
-    '• Show low leave balance users',
+    'I can help with leave and user insights. Try asking:',
+    '• Today summary',
+    '• Unit-wise users',
+    '• Pending approvals',
+    '• This week leaves',
+    '• Low leave balance',
+    '• 24-hour pending staff leaves',
   ].join('\n');
 }
 
@@ -470,7 +314,7 @@ async function loadSnapshot(): Promise<AiSnapshot> {
   const [profilesResult, leavesResult, allocationsResult, departmentsResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, username, email, phone, role, approval_status, college_unit, admin_designation, employment_status, department:departments(name)')
+      .select('id, full_name, username, email, role, approval_status, college_unit, admin_designation, employment_status, department:departments(name)')
       .or('employment_status.is.null,employment_status.neq.past')
       .limit(1000),
     supabase
@@ -513,7 +357,7 @@ export default function DirectorAiAssistant() {
     {
       id: 'welcome',
       role: 'assistant',
-      text: "Hi! I'm LeaveSync AI Insights. Ask me specific portal questions like: How many pending staff in Pharmacy? or Show approved Principal/UH in Junior.",
+      text: "Hi! I'm LeaveSync AI Insights. Ask me about unit-wise users, pending approvals, leaves, departments, or low balances.",
     },
   ]);
 
@@ -536,7 +380,7 @@ export default function DirectorAiAssistant() {
     try {
       const freshSnapshot = snapshot ?? await loadSnapshot();
       if (!snapshot) setSnapshot(freshSnapshot);
-      const answer = buildSmartAnswer(cleanQuestion, freshSnapshot);
+      const answer = buildAnswer(cleanQuestion, freshSnapshot);
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: answer }]);
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch (error: any) {
@@ -585,14 +429,11 @@ export default function DirectorAiAssistant() {
             setOpen(true);
             setMinimized(false);
           }}
-          className="fixed bottom-5 right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-primary to-purple-600 p-[3px] shadow-2xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:bottom-6 sm:right-6"
+          className="fixed bottom-5 right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-primary/40 bg-gradient-to-br from-primary via-orange-500 to-purple-600 p-[3px] shadow-2xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:bottom-6 sm:right-6"
           aria-label="Open LeaveSync AI Insights"
         >
-          <span className="relative flex h-full w-full items-center justify-center rounded-full bg-background">
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground shadow">AI</span>
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-card shadow-inner">
-              <Bot className="h-7 w-7 text-primary" />
-            </span>
+          <span className="flex h-full w-full items-center justify-center rounded-full bg-background">
+            <Bot className="h-8 w-8 text-primary" />
           </span>
         </button>
       )}
@@ -601,18 +442,15 @@ export default function DirectorAiAssistant() {
         <div className="fixed bottom-3 right-3 z-50 w-[calc(100vw-1.5rem)] max-w-[430px] overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl sm:bottom-5 sm:right-5">
           <div className="flex items-center justify-between border-b bg-card px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-primary to-purple-600 p-[2px]">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-background">
-                  <Bot className="h-6 w-6 text-primary" />
-                </div>
-                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card bg-green-500" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <Bot className="h-6 w-6 text-primary" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="truncate font-semibold">LeaveSync AI</p>
+                  <p className="truncate font-semibold">LeaveSync AI Insights</p>
                   <Badge variant="secondary" className="text-[10px]">Free</Badge>
                 </div>
-                <p className="truncate text-xs text-muted-foreground">Portal insights • {lastUpdated}</p>
+                <p className="truncate text-xs text-muted-foreground">Read-only smart assistant • {lastUpdated}</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -684,7 +522,7 @@ export default function DirectorAiAssistant() {
                   <textarea
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
-                    placeholder="Ask: how many pending staff in Pharmacy?"
+                    placeholder="Ask about users, leaves, units, approvals..."
                     rows={1}
                     className="max-h-24 min-h-10 flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     onKeyDown={(event) => {
