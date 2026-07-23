@@ -134,162 +134,87 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...
 
 ## 🤖 LeaveSync AI Insights Chatbot
 
-LeaveSync includes a free AI-powered, read-only portal assistant for the **Director** and **Viewer** portals. The assistant answers natural language questions using live portal data from Supabase. It does not approve, reject, delete, or edit anything.
+LeaveSync AI is a **read-only Director/Viewer assistant**. It answers natural-language questions using live Supabase portal data and a free Gemini key when configured.
 
-### Availability
+### What it can answer
 
-| Portal | AI Assistant |
-|---|---|
-| Director | Enabled |
-| Viewer | Enabled, read-only |
-| Principal / UH | Not enabled by default |
-| Staff | Not enabled by default |
+The assistant is designed for portal questions about:
 
-### AI provider
+- Junior / Senior / Pharmacy unit-wise users
+- Staff, Principal, UH, Director, and Viewer counts
+- Pending / approved / rejected registrations
+- Leave applications by status, unit, role, person, leave type, and date range
+- People on leave today / tomorrow / this week / this month
+- Leave balances and low-balance users
+- Departments by unit
+- Notifications summary
+- 24-hour pending staff leaves ready for Director review
+- Unit-wise analytics-style summaries
 
-The assistant uses a free Google AI Studio / Gemini key through the Supabase Edge Function:
+### Example questions for demo
 
-```bash
-supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
-supabase secrets set GEMINI_API_KEY=YOUR_FREE_GEMINI_API_KEY --project-ref ygndxtfgmbakemlvgtai
-supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
-```
+Use these during testing:
 
-No paid OpenAI/Gemini billing is required for the intended free-tier setup, but the project owner should still monitor API quota limits in Google AI Studio.
+- How many pending staff in Pharmacy?
+- Show approved staff in Senior.
+- Show Junior Principal and UH status.
+- Which unit has the most pending registrations?
+- Show pending leave requests older than 24 hours.
+- Who is on leave today?
+- Show Pharmacy leave applications.
+- Which leave type is used most?
+- Show low leave balance users.
+- How many departments are in Senior?
+- Give me today’s Director summary.
+- Compare users unit-wise.
+- Show leave applications by status.
 
-### Chat history behavior
+### Answer behavior
 
-- Chat messages are stored only in the browser component state.
-- Refreshing the page clears the chat automatically.
-- The chatbot clear/refresh button also resets the conversation.
-- No chat history table is created in Supabase.
+- Count questions return short count-first answers.
+- List questions show only a safe preview, not every record.
+- If many records match, it shows a limited list and asks the user to narrow by unit, status, role, leave type, department, or person.
+- The AI does not approve, reject, delete, edit, or update portal records.
+- Non-portal questions are refused politely.
+
+### Chat memory
+
+- The current chat context is sent to the Edge Function for follow-up questions.
+- Example: after asking “pending staff in Pharmacy”, the user can ask “what about Senior?” and it understands the previous topic.
+- Chat is stored only in React component state.
+- Refreshing the browser clears the chat completely.
 
 ### Voice support
 
-The chatbot supports optional browser-based voice features:
+- Voice input uses the free browser/device speech capability where supported.
+- Voice output uses browser speech synthesis where supported.
+- Unsupported devices hide unavailable voice buttons or show a typing fallback.
+- No paid voice API is required.
 
-- Voice input uses the browser Web Speech API where supported.
-- Voice reply uses browser speech synthesis when enabled.
-- Unsupported browsers fall back to normal typed input.
-- No extra paid service is required for voice input/output.
+### Setup
 
-### List and privacy behavior
+Deploy the Edge Function:
 
-To avoid long, confusing, scroll-heavy answers:
+```bash
+supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
+```
 
-- Count questions return counts first.
-- List questions show a maximum of 12 records.
-- If more records exist, the assistant says how many more and suggests narrowing by unit, status, role, or person.
-- The assistant should not dump every staff member unless the user explicitly asks and the list is small.
+Set the free AI key:
 
-### Example questions the assistant can answer
+```bash
+supabase secrets set GEMINI_API_KEY=YOUR_FREE_GEMINI_API_KEY --project-ref ygndxtfgmbakemlvgtai
+```
 
-#### Overall portal
+Optional model override:
 
-- Give me today’s portal summary.
-- What is the overall status of the portal?
-- How many active users are there?
-- How many approved users are there?
-- How many pending registrations are there?
-- Which unit has the most users?
-- Which unit has the most pending work?
-- Show user count unit-wise.
-- Show staff, Principal, and UH count unit-wise.
+```bash
+supabase secrets set FREE_AI_MODEL=gemini-1.5-flash-latest --project-ref ygndxtfgmbakemlvgtai
+```
 
-#### Unit-wise people
+Redeploy after setting secrets:
 
-- How many pending staff are in Pharmacy?
-- How many approved staff are in Senior?
-- How many Junior Principal/UH accounts are approved?
-- Show pending UH in Pharmacy.
-- Show approved Principal in Junior.
-- List Senior staff.
-- List Pharmacy approved staff.
-- How many users are in Junior College?
-- How many staff are pending in each unit?
-- Which units have no approved UH?
-- Which units have no approved Principal?
+```bash
+supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
+```
 
-#### Registration and approvals
-
-- Show pending registrations.
-- Show pending staff registrations.
-- Show pending Principal/UH registrations.
-- Show pending registrations in Senior.
-- How many Pharmacy registrations are pending?
-- Which registration requests are waiting for Director approval?
-- Which staff registrations are waiting for Principal/UH approval?
-- Show rejected registrations.
-- Show approved registrations today.
-
-#### Leave applications
-
-- How many leave applications are pending?
-- Show pending leaves in Senior.
-- Show approved leaves in Pharmacy.
-- Show rejected leaves in Junior.
-- Which leave applications are pending for more than 24 hours?
-- Show staff leave requests ready for Director review.
-- Show Principal/UH leave requests.
-- How many leave requests were approved this month?
-- Which unit has the most leave applications?
-- Which leave type is used most?
-- Show leave applications by unit.
-- Show leave applications by status.
-- Show leave applications by leave type.
-
-#### Calendar and date questions
-
-- Who is on leave today?
-- Who is on leave tomorrow?
-- Who is on leave this week?
-- Show today’s leave summary.
-- Show upcoming leaves.
-- Which unit has people on leave today?
-- Show approved leaves between two dates.
-- How many staff are absent today because of approved leave?
-
-#### Leave balance and allocation
-
-- Show low leave balance users.
-- Which staff have low Casual Leave balance?
-- Show leave balance for Senior staff.
-- Show Pharmacy leave allocation summary.
-- Which users have used the most leave?
-- Which leave type has the lowest remaining balance?
-- Show users with zero remaining leave.
-- Show leave balance by leave type.
-- Show this year’s leave allocation status.
-
-#### Departments
-
-- How many departments are in Senior?
-- Show departments in Junior.
-- Show Pharmacy departments.
-- Which unit has the most departments?
-- Show department-wise staff count.
-- Which departments have pending staff?
-- Show leave applications department-wise.
-
-#### Reports and analytics
-
-- Give me unit-wise analytics.
-- Show leave trend by unit.
-- Which unit has the highest leave usage?
-- Show approved versus pending leave count.
-- Show registration summary by unit.
-- Show staff count and leave count together.
-- Show high-level Director summary.
-- Give me a quick report for today.
-- Give me a monthly leave summary.
-- Give me a summary for Pharmacy College.
-
-#### Safety and scope
-
-The assistant should politely refuse non-portal questions, for example:
-
-- Tell me a movie recommendation.
-- Write my homework.
-- Tell me cricket score.
-
-It should respond that it can only answer LeaveSync portal-related questions.
+If the key/quota is unavailable, the assistant falls back to deterministic portal answers from live Supabase data.
