@@ -176,6 +176,92 @@ function buildPortalContext(data: {
   };
 }
 
+
+function detectScope(question: string) {
+  const q = question.toLowerCase();
+  const unit = q.includes('junior') ? 'junior' : q.includes('senior') ? 'senior' : (q.includes('pharmacy') || q.includes('pharma')) ? 'pharmacy' : null;
+  const status = q.includes('pending') || q.includes('waiting') ? 'pending' : q.includes('approved') ? 'approved' : q.includes('rejected') ? 'rejected' : null;
+  const role = q.includes('principal') ? 'Principal' : (q.includes('uh') || q.includes('unit head')) ? 'UH' : (q.includes('staff') || q.includes('employee')) ? 'Staff' : null;
+  const asksCount = /\b(how many|count|total|number of)\b/.test(q);
+  const asksList = /\b(show|list|who|which|give me|details|names)\b/.test(q);
+  const asksLeave = q.includes('leave') || q.includes('application') || q.includes('balance') || q.includes('allocation') || q.includes('today') || q.includes('week') || q.includes('month');
+  const asksDepartment = q.includes('department');
+  const asksUser = q.includes('staff') || q.includes('employee') || q.includes('principal') || q.includes('uh') || q.includes('user') || q.includes('registration');
+  return { unit, status, role, asksCount, asksList, asksLeave, asksDepartment, asksUser };
+}
+
+function unitMatches(recordUnit: string, rawUnit: string | undefined, unit: string | null) {
+  if (!unit) return true;
+  return String(rawUnit ?? '').toLowerCase() === unit || String(recordUnit ?? '').toLowerCase().includes(unit);
+}
+
+function buildFocusedContext(question: string, context: any) {
+  const scope = detectScope(question);
+  const maxRows = 12;
+
+  let matchedUsers = [...(context.users ?? [])];
+  matchedUsers = matchedUsers.filter((u: any) => unitMatches(u.unit, u.raw_unit, scope.unit));
+  if (scope.status) matchedUsers = matchedUsers.filter((u: any) => String(u.status).toLowerCase() === scope.status);
+  if (scope.role) matchedUsers = matchedUsers.filter((u: any) => String(u.role).toLowerCase() === scope.role.toLowerCase());
+
+  let matchedLeaves = [...(context.leave_applications ?? [])];
+  matchedLeaves = matchedLeaves.filter((l: any) => unitMatches(l.unit, undefined, scope.unit));
+  if (scope.status) matchedLeaves = matchedLeaves.filter((l: any) => String(l.status).toLowerCase() === scope.status);
+  if (scope.role) matchedLeaves = matchedLeaves.filter((l: any) => String(l.role).toLowerCase() === scope.role.toLowerCase());
+
+  let matchedAllocations = [...(context.leave_allocations ?? [])];
+  matchedAllocations = matchedAllocations.filter((a: any) => unitMatches(a.unit, undefined, scope.unit));
+  if (scope.role) matchedAllocations = matchedAllocations.filter((a: any) => String(a.role).toLowerCase() === scope.role.toLowerCase());
+
+  let matchedDepartments = [...(context.departments ?? [])];
+  matchedDepartments = matchedDepartments.filter((d: any) => unitMatches(d.unit, d.raw_unit, scope.unit));
+
+  const userCounts = {
+    total: matchedUsers.length,
+    by_status: countBy(matchedUsers, (u: any) => String(u.status).toLowerCase()),
+    by_role: countBy(matchedUsers, (u: any) => String(u.role)),
+    by_unit: countBy(matchedUsers, (u: any) => String(u.unit)),
+  };
+
+  const leaveCounts = {
+    total: matchedLeaves.length,
+    by_status: countBy(matchedLeaves, (l: any) => String(l.status).toLowerCase()),
+    by_role: countBy(matchedLeaves, (l: any) => String(l.role)),
+    by_unit: countBy(matchedLeaves, (l: any) => String(l.unit)),
+    by_leave_type: countBy(matchedLeaves, (l: any) => String(l.leave_type)),
+  };
+
+  return {
+    generated_at: context.generated_at,
+    current_year: context.current_year,
+    interpreted_scope: scope,
+    display_policy: {
+      max_list_rows: maxRows,
+      list_rule: 'Never print more than max_list_rows records. If there are more, show first max_list_rows and say how many more exist. For count questions, answer count only with one short explanation.',
+      exact_question_rule: 'Answer only what the user asked. Do not add unrelated dashboard summaries.',
+    },
+    overall_summary: context.summary,
+    matched_counts: {
+      users: userCounts,
+      leave_applications: leaveCounts,
+      departments: matchedDepartments.length,
+      allocations: matchedAllocations.length,
+    },
+    matched_samples: {
+      users: matchedUsers.slice(0, maxRows),
+      leave_applications: matchedLeaves.slice(0, maxRows),
+      leave_allocations: matchedAllocations.slice(0, maxRows),
+      departments: matchedDepartments.slice(0, maxRows),
+    },
+    has_more: {
+      users: Math.max(0, matchedUsers.length - maxRows),
+      leave_applications: Math.max(0, matchedLeaves.length - maxRows),
+      leave_allocations: Math.max(0, matchedAllocations.length - maxRows),
+      departments: Math.max(0, matchedDepartments.length - maxRows),
+    },
+  };
+}
+
 function fallbackAnswer(question: string, context: any) {
   const q = question.toLowerCase();
   const unit =
@@ -203,9 +289,13 @@ function fallbackAnswer(question: string, context: any) {
     const unitText = unit ? formatUnit(unit) : 'all units';
     const statusText = wantsPending ? 'pending ' : wantsApproved ? 'approved ' : '';
     const roleText = wantsStaff ? 'staff' : wantsPrincipal ? 'principal' : wantsUh ? 'UH' : 'users';
-    const sample = users.slice(0, 10).map((u) => `• ${u.name} (${u.unit}, ${u.role}, ${u.status})`).join('\n');
+    const sample = users.slice(0, 8).map((u) => `• ${u.name} (${u.unit}, ${u.role}, ${u.status})`).join('\n');
+    const more = users.length > 8 ? `\n…and ${users.length - 8} more. Please ask with a unit/status/name filter for more details.` : '';
 
-    return `${statusText}${roleText} in ${unitText}: ${users.length}${sample ? `\n\n${sample}` : ''}`;
+    if (q.includes('how many') || q.includes('count') || q.includes('total')) {
+      return `${statusText}${roleText} in ${unitText}: ${users.length}`;
+    }
+    return `${statusText}${roleText} in ${unitText}: ${users.length}${sample ? `\n\n${sample}${more}` : ''}`;
   }
 
   if (wantsLeave) {
@@ -214,8 +304,12 @@ function fallbackAnswer(question: string, context: any) {
     if (wantsPending) leaves = leaves.filter((l) => l.status === 'pending');
     if (wantsApproved) leaves = leaves.filter((l) => l.status === 'approved');
 
-    const sample = leaves.slice(0, 10).map((l) => `• ${l.applicant} (${l.unit}, ${l.role}) - ${l.leave_type}, ${l.status}, ${l.start_date} to ${l.end_date}`).join('\n');
-    return `Matching leave applications: ${leaves.length}${sample ? `\n\n${sample}` : ''}`;
+    const sample = leaves.slice(0, 8).map((l) => `• ${l.applicant} (${l.unit}, ${l.role}) - ${l.leave_type}, ${l.status}, ${l.start_date} to ${l.end_date}`).join('\n');
+    const more = leaves.length > 8 ? `\n…and ${leaves.length - 8} more. Please ask with a unit/status/name filter for more details.` : '';
+    if (q.includes('how many') || q.includes('count') || q.includes('total')) {
+      return `Matching leave applications: ${leaves.length}`;
+    }
+    return `Matching leave applications: ${leaves.length}${sample ? `\n\n${sample}${more}` : ''}`;
   }
 
   return [
@@ -229,6 +323,7 @@ function fallbackAnswer(question: string, context: any) {
 }
 
 async function callGemini(question: string, context: any) {
+  const focusedContext = buildFocusedContext(question, context);
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('FREE_AI_API_KEY');
   if (!apiKey) {
     return fallbackAnswer(question, context);
@@ -251,19 +346,21 @@ Answer ONLY questions related to this portal data:
 - reports/analytics/calendar-style summaries
 
 Rules:
-1. Answer the user's exact question directly. Do NOT dump full dashboard summaries unless asked.
+1. Answer the user's exact question only. Do NOT dump full dashboard summaries unless the user asks for a full summary.
 2. Use only the JSON portal context. Do not invent data.
-3. If the question asks "how many", give the count first.
-4. If the question asks "show/list/who", include names and short details.
-5. If the question is not related to portal data, politely say you can only answer LeaveSync portal questions.
-6. Keep answers clear for a college Director. Mention unit names clearly.
-7. If data is missing or zero, say so clearly.
+3. If the question asks "how many", give the count first and keep the answer short.
+4. If the question asks "show/list/who", show maximum 12 records. If more exist, say how many more and suggest narrowing by unit/status/person.
+5. Never list all staff/users when count is large. Use counts and short grouped summaries unless names are explicitly requested.
+6. If the question is not related to portal data, politely say you can only answer LeaveSync portal questions.
+7. Keep answers clear for a college Director. Mention unit names clearly.
+8. If data is missing or zero, say so clearly.
+9. Use the focused context first. Use overall_summary only when the user asks broad/overall questions.
 
 User question:
 ${question}
 
 Portal context JSON:
-${JSON.stringify(context)}
+${JSON.stringify(focusedContext)}
 `;
 
   const response = await fetch(endpoint, {
