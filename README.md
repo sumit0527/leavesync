@@ -134,72 +134,69 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...
 
 ## 🤖 LeaveSync AI Insights Chatbot
 
-LeaveSync AI is a **read-only Director/Viewer assistant**. It answers natural-language questions using live Supabase portal data and a free Gemini key when configured.
+LeaveSync AI is a **read-only Director/Viewer chatbot** for portal insights. It uses live Supabase data plus the configured free Gemini key to understand natural questions and answer from the same information visible in the Director/Viewer portal.
 
-### What it can answer
+### Safe access rules
 
-The assistant is designed for portal questions about:
+The chatbot can read and summarize portal data for:
 
-- Junior / Senior / Pharmacy unit-wise users
-- Staff, Principal, UH, Director, and Viewer counts
-- Pending / approved / rejected registrations
-- Leave applications by status, unit, role, person, leave type, and date range
-- People on leave today / tomorrow / this week / this month
-- Leave balances and low-balance users
-- Departments by unit
-- Notifications summary
-- 24-hour pending staff leaves ready for Director review
-- Unit-wise analytics-style summaries
+- users: Staff, Principal, UH, Director, Viewer
+- college units: Junior, Senior, Pharmacy
+- departments and department-wise staff/application counts
+- registrations: pending, approved, rejected
+- leave applications: status, unit, role, department, leave type, dates, duration
+- analytics/report summaries: total, approved, pending, rejected, unit-wise, department-wise, leave type usage
+- leave balances and low-balance users
+- calendar-style insights such as today, tomorrow, this week, this month
+- notifications and 24-hour pending staff leaves for Director review
 
-### Example questions for demo
+The chatbot must **not** expose sensitive data such as passwords, tokens, API keys, phone numbers, email addresses, personal addresses, bank details, health/medical details, or detailed leave reasons. It also cannot approve, reject, edit, delete, or create records.
 
-Use these during testing:
+### Demo questions
 
-- How many pending staff in Pharmacy?
-- Show approved staff in Senior.
-- Show Junior Principal and UH status.
-- Which unit has the most pending registrations?
-- Show pending leave requests older than 24 hours.
+- How many pending staff are in Pharmacy?
+- Show approved staff in Senior College.
+- Show Principal and UH status unit-wise.
+- Give me an analytics report unit-wise.
+- Show department-wise staff summary.
+- Show department-wise applications.
+- Which unit has the most pending leaves?
+- Which leave type is used most this year?
 - Who is on leave today?
-- Show Pharmacy leave applications.
-- Which leave type is used most?
+- Show pending leaves older than 24 hours.
 - Show low leave balance users.
-- How many departments are in Senior?
-- Give me today’s Director summary.
-- Compare users unit-wise.
-- Show leave applications by status.
+- How many departments are in Junior College?
+- Compare registrations unit-wise.
+- Show pending applications by unit and role.
+- What about Senior? *(works as a follow-up question in the current chat)*
 
-### Answer behavior
+### Chat behavior
 
-- Count questions return short count-first answers.
-- List questions show only a safe preview, not every record.
-- If many records match, it shows a limited list and asks the user to narrow by unit, status, role, leave type, department, or person.
-- The AI does not approve, reject, delete, edit, or update portal records.
-- Non-portal questions are refused politely.
+- Welcome message is short and clean.
+- Quick insight buttons appear above the messages for fast Director/Viewer questions.
+- Answers are focused on the question and should not dump unrelated data.
+- Large lists are limited to a safe preview. The bot tells the user how many more records exist and asks them to narrow the question.
+- Current chat memory is passed to the Edge Function for follow-up questions only.
+- Browser refresh clears the chat completely.
 
-### Chat memory
+### Voice input
 
-- The current chat context is sent to the Edge Function for follow-up questions.
-- Example: after asking “pending staff in Pharmacy”, the user can ask “what about Senior?” and it understands the previous topic.
-- Chat is stored only in React component state.
-- Refreshing the browser clears the chat completely.
+Voice input records audio in the browser and sends it to the `ai-portal-insights` Edge Function. Gemini transcribes the audio and then answers using portal data.
 
-### Voice support
+Requirements:
 
-- Voice input uses the free browser/device speech capability where supported.
-- Voice output uses browser speech synthesis where supported.
-- Unsupported devices hide unavailable voice buttons or show a typing fallback.
-- No paid voice API is required.
+- `GEMINI_API_KEY` must be set in Supabase secrets.
+- The browser/device must allow microphone permission.
+- If a mobile browser does not support audio recording or permission is blocked, the user can still type the question.
+- There is no speaker/read-aloud icon because the portal needs question input, not noisy voice output.
 
-### Setup
-
-Deploy the Edge Function:
+### Deploy AI function
 
 ```bash
 supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
 ```
 
-Set the free AI key:
+Set the free Gemini key:
 
 ```bash
 supabase secrets set GEMINI_API_KEY=YOUR_FREE_GEMINI_API_KEY --project-ref ygndxtfgmbakemlvgtai
@@ -216,5 +213,3 @@ Redeploy after setting secrets:
 ```bash
 supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
 ```
-
-If the key/quota is unavailable, the assistant falls back to deterministic portal answers from live Supabase data.
