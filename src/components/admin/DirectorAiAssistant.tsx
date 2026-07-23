@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Bot, Send, X, RefreshCw, Sparkles, Minimize2 } from 'lucide-react';
+import { Bot, Send, X, RefreshCw, Sparkles, Minimize2, Mic, MicOff, Volume2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,30 @@ type AiResponse = {
   generatedAt?: string;
   mode?: 'free_ai' | 'fallback';
   error?: string;
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+};
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  }
+}
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  text: "Hi! I'm LeaveSync AI. Ask me anything related to this portal data.",
 };
 
 function makeId() {
@@ -44,13 +68,9 @@ export default function DirectorAiAssistant() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: "Hi! I'm LeaveSync AI. Ask me anything related to this portal data.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [listening, setListening] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -58,6 +78,57 @@ export default function DirectorAiAssistant() {
     if (!lastUpdatedAt) return 'Ready';
     return format(lastUpdatedAt, 'dd MMM, hh:mm a');
   }, [lastUpdatedAt]);
+
+  const resetChat = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setMessages([{ ...WELCOME_MESSAGE, id: 'welcome' }]);
+    setInput('');
+    setLastUpdatedAt(null);
+  };
+
+  const speakAnswer = (text: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const shortText = text.replace(/•/g, '').slice(0, 700);
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(shortText);
+    utterance.lang = 'en-IN';
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startVoiceInput = () => {
+    if (typeof window === 'undefined') return;
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: makeId(),
+          role: 'assistant',
+          text: 'Voice input is not supported in this browser. Please type your question.',
+        },
+      ]);
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event: any) => {
+      const transcript = String(event?.results?.[0]?.[0]?.transcript ?? '').trim();
+      if (transcript) {
+        setInput(transcript);
+        askQuestion(transcript);
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    setListening(true);
+    recognition.start();
+  };
 
   const askQuestion = async (question: string) => {
     const cleanQuestion = question.trim();
@@ -71,6 +142,7 @@ export default function DirectorAiAssistant() {
       const result = await askPortalAi(cleanQuestion);
       const answer = result.answer || result.error || 'I could not prepare an answer for this question.';
       setMessages((prev) => [...prev, { id: makeId(), role: 'assistant', text: answer }]);
+      speakAnswer(answer);
       setLastUpdatedAt(result.generatedAt ? new Date(result.generatedAt) : new Date());
       setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch (error: any) {
@@ -90,29 +162,9 @@ export default function DirectorAiAssistant() {
   };
 
   const refreshData = async () => {
-    if (busy) return;
-    setBusy(true);
-
-    try {
-      const result = await askPortalAi('Give me a short current portal summary.');
-      setMessages((prev) => [
-        ...prev,
-        { id: makeId(), role: 'assistant', text: result.answer || 'Data refreshed.' },
-      ]);
-      setLastUpdatedAt(result.generatedAt ? new Date(result.generatedAt) : new Date());
-      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-    } catch (error: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: makeId(),
-          role: 'assistant',
-          text: `Refresh failed. ${error?.message ?? 'Please try again.'}`,
-        },
-      ]);
-    } finally {
-      setBusy(false);
-    }
+    // This refresh button intentionally clears the current chat.
+    // Browser page refresh also starts with a clean conversation because no chat history is stored.
+    resetChat();
   };
 
   return (
@@ -159,7 +211,7 @@ export default function DirectorAiAssistant() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData} disabled={busy} aria-label="Refresh AI data">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData} disabled={busy} aria-label="Clear AI chat">
                 <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
               </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setMinimized((value) => !value)} aria-label="Minimize AI chat">
@@ -221,12 +273,35 @@ export default function DirectorAiAssistant() {
                       }
                     }}
                   />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-10 w-10 shrink-0 rounded-xl"
+                    onClick={startVoiceInput}
+                    disabled={busy || listening}
+                    aria-label="Ask by voice"
+                    title="Ask by voice"
+                  >
+                    {listening ? <MicOff className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant={voiceEnabled ? 'default' : 'outline'}
+                    className="h-10 w-10 shrink-0 rounded-xl"
+                    onClick={() => setVoiceEnabled((value) => !value)}
+                    aria-label="Toggle voice reply"
+                    title="Toggle voice reply"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
                   <Button type="submit" size="icon" className="h-10 w-10 shrink-0 rounded-xl" disabled={busy || !input.trim()}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </form>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Read-only assistant. Uses the configured free AI provider and portal data only.
+                  Read-only assistant. Mic uses browser voice input. No chat history is stored after refresh.
                 </p>
               </div>
             </>
