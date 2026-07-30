@@ -77,7 +77,7 @@ const renderCustomLegend = (props: any) => {
 };
 
 export default function Analytics() {
-  const { isPrincipal, isMainAdmin, isViewer } = useAuth();
+  const { profile, isPrincipal, isMainAdmin, isViewer } = useAuth();
   const isDirectorView = isMainAdmin || isViewer;
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
@@ -102,7 +102,7 @@ export default function Analytics() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedYear, selectedUnit]);
+  }, [selectedYear, selectedUnit, profile?.college_unit, isPrincipal]);
 
   const fetchAnalytics = async (year: number) => {
     try {
@@ -116,7 +116,12 @@ export default function Analytics() {
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd);
 
-      const rows = (Array.isArray(allData) ? allData : []).filter((app: any) => selectedUnit === 'all' || app.staff?.college_unit === selectedUnit);
+      const rows = (Array.isArray(allData) ? allData : []).filter((app: any) => {
+        if (isPrincipal) {
+          return Boolean(profile?.college_unit) && app.staff?.college_unit === profile.college_unit;
+        }
+        return selectedUnit === 'all' || app.staff?.college_unit === selectedUnit;
+      });
 
       // Principal Analytics = staff analysis only.
       // Director/Viewer Analytics summary = Principal leave stats only.
