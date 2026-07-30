@@ -18,6 +18,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  HelpCircle,
   
 } from 'lucide-react';
 import { useState } from 'react';
@@ -37,6 +38,7 @@ const navigation = [
   { name: 'Leave Calendar', href: '/admin/calendar', icon: Calendar },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Notifications', href: '/admin/notifications', icon: Bell },
+  { name: 'FAQ', href: '/admin/faq', icon: HelpCircle },
   { name: 'My Profile', href: '/admin/profile', icon: Shield },
 ];
 
