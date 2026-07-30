@@ -282,7 +282,7 @@ export default function HomePage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 border border-primary/30 rounded-full px-4 sm:px-5 py-2 text-[10px] sm:text-xs tracking-[2px] sm:tracking-[3px] uppercase text-primary bg-primary/5 backdrop-blur-sm mb-5 sm:mb-6 animate-fade-in">
             <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" style={{ boxShadow: '0 0 8px rgba(212,175,55,0.6)' }} />
-            <span className="text-balance">G.D. Sawant College of Technology</span>
+            <span className="text-balance">GSM</span>
           </div>
 
           {/* Title */}
