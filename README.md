@@ -217,3 +217,32 @@ Redeploy after setting secrets:
 ```bash
 supabase functions deploy ai-portal-insights --project-ref ygndxtfgmbakemlvgtai
 ```
+
+## Policy update: Saturday, Duty Leave, C-Off and FAQ
+
+Run this SQL once in Supabase SQL Editor:
+
+```text
+docs/sql/2026-07-30_new_leave_policy_faq_and_safe_crud.sql
+```
+
+Deploy the FAQ email function:
+
+```bash
+supabase functions deploy send-faq-question-email --project-ref ygndxtfgmbakemlvgtai
+```
+
+The update provides:
+- Saturday as a working day; only Sunday receives weekly-off treatment.
+- Same-day application allowed except from 10:00 AM to 5:00 PM, India time.
+- Duty Leave and C-Off with no fixed allocation and mandatory reason/document.
+- PDF, JPG, JPEG and PNG uploads up to 5 MB.
+- FAQ section in Staff, Principal/UH, Director and Viewer portals.
+- FAQ question submission stored in Supabase and emailed to approved Directors.
+- Safe leave-type removal: unused types are deleted; used types are archived to preserve history.
+
+Offline leave data can be imported later using the verified college sheet. See:
+
+```text
+docs/OFFLINE_LEAVE_IMPORT_GUIDE.md
+```
