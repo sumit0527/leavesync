@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useLeaveTypes } from '@/hooks/use-leave-types';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
-import { Calendar, Plus, Edit, Trash2, Loader2, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, Plus, Edit, Trash2, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import type { LeaveType } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -29,6 +29,7 @@ export default function LeaveTypes() {
   const [description, setDescription] = useState('');
   const [annualAllocation, setAnnualAllocation] = useState('');
   const [requiresDocument, setRequiresDocument] = useState(false);
+  const [hasFixedAllocation, setHasFixedAllocation] = useState(true);
 
   const handleCreate = () => {
     if (isConfigReadOnly) return;
@@ -37,6 +38,7 @@ export default function LeaveTypes() {
     setDescription('');
     setAnnualAllocation('');
     setRequiresDocument(false);
+    setHasFixedAllocation(true);
     setDialogOpen(true);
   };
 
@@ -47,6 +49,7 @@ export default function LeaveTypes() {
     setDescription(type.description || '');
     setAnnualAllocation(type.annual_allocation.toString());
     setRequiresDocument(type.requires_document);
+    setHasFixedAllocation(type.has_fixed_allocation !== false);
     setDialogOpen(true);
   };
 
@@ -66,8 +69,8 @@ export default function LeaveTypes() {
       return;
     }
 
-    const allocation = parseInt(annualAllocation);
-    if (isNaN(allocation) || allocation < 1 || allocation > 365) {
+    const allocation = hasFixedAllocation ? parseInt(annualAllocation) : 0;
+    if (hasFixedAllocation && (isNaN(allocation) || allocation < 1 || allocation > 365)) {
       toast.error('Annual allocation must be between 1 and 365 days');
       return;
     }
@@ -81,7 +84,8 @@ export default function LeaveTypes() {
             name: name.trim(),
             description: description.trim() || null,
             annual_allocation: allocation,
-            requires_document: requiresDocument
+            requires_document: requiresDocument,
+            has_fixed_allocation: hasFixedAllocation
           })
           .eq('id', editingType.id);
 
@@ -94,7 +98,8 @@ export default function LeaveTypes() {
             name: name.trim(),
             description: description.trim() || null,
             annual_allocation: allocation,
-            requires_document: requiresDocument
+            requires_document: requiresDocument,
+            has_fixed_allocation: hasFixedAllocation
           });
 
         if (error) throw error;
@@ -112,43 +117,22 @@ export default function LeaveTypes() {
   };
 
   const confirmDelete = async () => {
-    if (isConfigReadOnly) {
-      toast.error('Only Director can delete leave types');
-      return;
-    }
+    if (isConfigReadOnly) { toast.error('Only Director can delete leave types'); return; }
     if (!deletingType) return;
-
     setProcessing(true);
     try {
-      // Check if leave type has applications
-      const { data: applications } = await supabase
-        .from('leave_applications')
-        .select('id', { count: 'exact', head: true })
-        .eq('leave_type_id', deletingType.id);
-
-      if (applications && applications.length > 0) {
-        toast.error('Cannot delete leave type with existing applications');
-        setDeleteDialogOpen(false);
-        setProcessing(false);
-        return;
-      }
-
-      const { error } = await supabase
-        .from('leave_types')
-        .delete()
-        .eq('id', deletingType.id);
-
+      const { data, error } = await supabase.rpc('delete_leave_type_safely', { p_leave_type_id: deletingType.id });
       if (error) throw error;
-
-      toast.success('Leave type deleted successfully');
+      const result = Array.isArray(data) ? data[0] : data;
+      toast.success(result?.action === 'deleted'
+        ? 'Leave type deleted successfully'
+        : 'Leave type removed from active portal lists. Historical applications are preserved.');
       setDeleteDialogOpen(false);
-      refetch();
+      await refetch();
     } catch (error) {
       console.error('Delete error:', error);
-      toast.error('Failed to delete leave type');
-    } finally {
-      setProcessing(false);
-    }
+      toast.error(error instanceof Error ? error.message : 'Failed to remove leave type');
+    } finally { setProcessing(false); }
   };
 
   return (
@@ -221,7 +205,7 @@ export default function LeaveTypes() {
                 <CardContent className="mt-auto space-y-3">
                   <div className="flex items-center justify-between rounded-md border border-border p-3">
                     <span className="text-sm font-medium">Annual Allocation</span>
-                    <span className="text-lg font-bold text-primary">{type.annual_allocation} days</span>
+                    <span className="text-lg font-bold text-primary">{type.has_fixed_allocation === false ? 'No fixed limit' : `${type.annual_allocation} days`}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     {type.requires_document ? (
@@ -274,15 +258,27 @@ export default function LeaveTypes() {
                   className="resize-none px-3"
                 />
               </div>
+              <div className="flex items-center space-x-2 rounded-md border border-border p-3">
+                <Checkbox
+                  id="hasFixedAllocation"
+                  checked={hasFixedAllocation}
+                  onCheckedChange={(checked) => setHasFixedAllocation(checked === true)}
+                />
+                <div>
+                  <Label htmlFor="hasFixedAllocation" className="cursor-pointer">Fixed yearly allocation</Label>
+                  <p className="text-xs text-muted-foreground">Turn this off for Duty Leave, C-Off, or other unlimited policy-based leave.</p>
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="allocation">Annual Allocation (Days) *</Label>
+                <Label htmlFor="allocation">Annual Allocation (Days) {hasFixedAllocation ? '*' : ''}</Label>
                 <Input
                   id="allocation"
                   type="number"
                   min="1"
                   max="365"
-                  placeholder="e.g., 12"
+                  placeholder={hasFixedAllocation ? "e.g., 12" : "Not applicable"}
                   value={annualAllocation}
+                  disabled={!hasFixedAllocation}
                   onChange={(e) => setAnnualAllocation(e.target.value)}
                   className="px-3"
                 />
@@ -323,8 +319,7 @@ export default function LeaveTypes() {
             <AlertDialogHeader>
               <AlertDialogTitle className="font-playfair-display">Delete Leave Type</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{deletingType?.name}"? This action cannot be undone.
-                Leave types with existing applications cannot be deleted.
+                Remove "{deletingType?.name}" from the active portal? If historical applications exist, they will be preserved and the leave type will be safely archived.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
