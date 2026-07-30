@@ -12,6 +12,7 @@ export function useLeaveTypes() {
       const { data } = await supabase
         .from('leave_types')
         .select('*')
+        .eq('is_active', true)
         .order('name');
 
       if (data) {
