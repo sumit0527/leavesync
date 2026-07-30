@@ -241,13 +241,13 @@ export default function ApplyLeave() {
       const fileName = `${profile?.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       
       const { error: uploadError } = await supabase.storage
-        .from('leave-documents')
+        .from('leave-docs')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage
-        .from('leave-documents')
+        .from('leave-docs')
         .getPublicUrl(fileName);
 
       return urlData.publicUrl;
