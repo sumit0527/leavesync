@@ -29,6 +29,7 @@ import LeaveTypes from './pages/admin/LeaveTypes';
 import AdminCalendar from './pages/admin/AdminCalendar';
 import AdminNotifications from './pages/admin/AdminNotifications';
 import AdminProfile from './pages/admin/AdminProfile';
+import FAQ from './pages/FAQ';
 
 export interface RouteConfig {
   name: string;
@@ -62,6 +63,7 @@ export const routes: RouteConfig[] = [
   { name: 'Leave Calendar', path: '/staff/calendar', element: <LeaveCalendar /> },
   { name: 'Staff Profile', path: '/staff/profile', element: <StaffProfile /> },
   { name: 'Staff Notifications', path: '/staff/notifications', element: <StaffNotifications /> },
+  { name: 'Staff FAQ', path: '/staff/faq', element: <FAQ /> },
 
   // Admin portal
   { name: 'Admin Dashboard', path: '/admin/dashboard', element: <AdminDashboard /> },
@@ -74,4 +76,5 @@ export const routes: RouteConfig[] = [
   { name: 'Admin Calendar', path: '/admin/calendar', element: <AdminCalendar /> },
   { name: 'Admin Notifications', path: '/admin/notifications', element: <AdminNotifications /> },
   { name: 'Admin Profile', path: '/admin/profile', element: <AdminProfile /> },
+  { name: 'Admin FAQ', path: '/admin/faq', element: <FAQ /> },
 ];
