@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import StaffLayout from '@/components/layouts/StaffLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +39,7 @@ export default function ApplyLeave() {
   const [halfDayPeriod, setHalfDayPeriod] = useState<HalfDayPeriod>('first_half');
   const [reason, setReason] = useState('');
   const [document, setDocument] = useState<File | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [availableBalance, setAvailableBalance] = useState<number>(0);
@@ -233,6 +234,11 @@ export default function ApplyLeave() {
       }
       setDocument(file);
     }
+  };
+
+  const clearDocument = () => {
+    setDocument(null);
+    if (documentInputRef.current) documentInputRef.current.value = '';
   };
 
   const uploadDocument = async (file: File): Promise<string | null> => {
@@ -582,9 +588,9 @@ ${email.body}`);
               <div className="space-y-2">
                 <Label htmlFor="document">Supporting Document {selectedLeaveType?.requires_document ? '*' : '(Optional)'}</Label>
                 <div className="flex items-center gap-3">
-                  <Input id="document" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="px-3" />
+                  <Input ref={documentInputRef} id="document" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="px-3" />
                   {document && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setDocument(null)}>Remove</Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearDocument}>Remove</Button>
                   )}
                 </div>
                 <div className="space-y-1">
