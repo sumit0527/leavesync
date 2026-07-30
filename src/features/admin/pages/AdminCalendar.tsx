@@ -433,7 +433,7 @@ export default function AdminCalendar() {
                   const isHol = isHolidayDate(day);
                   const isTod = isToday(day);
                   const isSel = selectedDate && isSameDay(day, selectedDate);
-                  const isWeekendDay = getDay(day) === 0 || getDay(day) === 6;
+                  const isWeekendDay = getDay(day) === 0;
                   const leavesCount = getLeavesOnDate(day).length;
 
                   return (
@@ -535,7 +535,7 @@ export default function AdminCalendar() {
                       </div>
                     )}
                     {selectedDayLeaves.length === 0 && !selectedHoliday ? (
-                      <p className="text-xs text-muted-foreground">No approved leaves, holiday, or weekend note on this day</p>
+                      <p className="text-xs text-muted-foreground">No approved leaves, holiday or Sunday note on this day</p>
                     ) : selectedDayLeaves.length > 0 ? (
                       <div className="space-y-2">
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
