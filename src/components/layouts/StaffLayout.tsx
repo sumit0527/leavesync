@@ -14,6 +14,7 @@ import {
   User, 
   Menu, 
   LogOut,
+  HelpCircle,
   
 } from 'lucide-react';
 import { useState } from 'react';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Leave History', href: '/staff/leave-history', icon: History },
   { name: 'Leave Calendar', href: '/staff/calendar', icon: Calendar },
   { name: 'Notifications', href: '/staff/notifications', icon: Bell },
+  { name: 'FAQ', href: '/staff/faq', icon: HelpCircle },
   { name: 'Profile', href: '/staff/profile', icon: User },
 ];
 
