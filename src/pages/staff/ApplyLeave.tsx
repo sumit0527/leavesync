@@ -28,7 +28,7 @@ type HalfDayPeriod = 'first_half' | 'second_half';
 export default function ApplyLeave() {
   const { profile, isPrincipal } = useAuth();
   const navigate = useNavigate();
-  const { isValidLeaveDate } = useHolidays();
+  const { isValidLeaveDate, isSameDayBlockedNow } = useHolidays();
   const { leaveTypes } = useLeaveTypes();
   const { allocations, refetch: refetchAllocations } = useLeaveAllocations(profile?.id);
   const [startDate, setStartDate] = useState<Date>();
@@ -52,6 +52,8 @@ export default function ApplyLeave() {
 
   useEffect(() => {
     if (!leaveTypeId || !profile?.id) return;
+    const leaveType = leaveTypes.find((item) => item.id === leaveTypeId);
+    if (leaveType?.has_fixed_allocation === false) { setAvailableBalance(0); return; }
 
     const loadedBalance = getBalanceFromLoadedAllocations();
     if (loadedBalance !== null) {
@@ -218,8 +220,15 @@ export default function ApplyLeave() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) {
-        toast.error('File size must be less than 1MB');
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+      const extensionAllowed = /\.(pdf|jpe?g|png)$/i.test(file.name);
+      if (!allowedTypes.includes(file.type) && !extensionAllowed) {
+        toast.error('Only PDF, JPG, JPEG and PNG files are supported');
+        e.target.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File size must be less than 5MB');
         return;
       }
       setDocument(file);
@@ -368,7 +377,7 @@ ${email.body}`);
     }
 
     if (!isValidLeaveDate(startDate)) {
-      toast.error('Start date is not valid (same day, weekend, or holiday)');
+      toast.error(isSameDayBlockedNow() ? 'Same-day leave cannot be selected between 10:00 AM and 5:00 PM' : 'Start date is not valid (past date, Sunday, or holiday)');
       return;
     }
 
@@ -383,17 +392,18 @@ ${email.body}`);
         return;
       }
 
-      const latestBalance = await ensureAndFetchLeaveBalance(true);
+      const hasFixedAllocation = selectedLeaveType?.has_fixed_allocation !== false;
+      const latestBalance = hasFixedAllocation ? await ensureAndFetchLeaveBalance(true) : Number.POSITIVE_INFINITY;
 
-      if (latestBalance < leaveDays) {
+      if (hasFixedAllocation && latestBalance < leaveDays) {
         setBalanceDialogMessage(`Insufficient leave balance. You need ${leaveDays} day(s), but only ${latestBalance} day(s) are available for ${selectedLeaveType?.name ?? 'this leave type'}.`);
         setBalanceDialogOpen(true);
         setLoading(false);
         return;
       }
 
-      if (leaveDays > 2 && !document && selectedLeaveType?.requires_document) {
-        toast.error('Document attachment is mandatory for leaves exceeding 2 days');
+      if (!document && selectedLeaveType?.requires_document) {
+        toast.error(`Supporting document is mandatory for ${selectedLeaveType.name}`);
         setLoading(false);
         return;
       }
@@ -467,12 +477,12 @@ ${email.body}`);
                   <SelectContent>
                     {leaveTypes.map((type) => (
                       <SelectItem key={type.id} value={type.id}>
-                        {type.name} ({type.annual_allocation} days/year)
+                        {type.name} {type.has_fixed_allocation === false ? '(No fixed allocation)' : `(${type.annual_allocation} days/year)`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {leaveTypeId && (
+                {leaveTypeId && selectedLeaveType?.has_fixed_allocation !== false && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Available Balance:</span>
                     <span className="font-semibold text-primary">{Math.max(0, availableBalance)} days</span>
@@ -558,7 +568,7 @@ ${email.body}`);
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reason">Reason for Leave</Label>
+                <Label htmlFor="reason">Reason for Leave *</Label>
                 <Textarea
                   id="reason"
                   placeholder="Please provide a detailed reason for your leave request..."
@@ -570,7 +580,7 @@ ${email.body}`);
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="document">Supporting Document (Optional)</Label>
+                <Label htmlFor="document">Supporting Document {selectedLeaveType?.requires_document ? '*' : '(Optional)'}</Label>
                 <div className="flex items-center gap-3">
                   <Input id="document" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="px-3" />
                   {document && (
@@ -578,11 +588,11 @@ ${email.body}`);
                   )}
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Max file size: 1MB. Supported formats: PDF, JPG, PNG</p>
+                  <p className="text-xs text-muted-foreground">Max file size: 5MB. Supported formats: PDF, JPG, JPEG, PNG</p>
                   {startDate && endDate && (
                     <div className="flex items-start gap-2 text-xs">
                       <AlertCircle className="h-3 w-3 mt-0.5 text-amber-600" />
-                      <span className="text-amber-600">Document attachment is mandatory for leaves exceeding 2 days when required by leave type</span>
+                      <span className="text-amber-600">Document is mandatory whenever the selected leave type requires it</span>
                     </div>
                   )}
                 </div>
@@ -604,8 +614,8 @@ ${email.body}`);
             <CardTitle className="text-sm font-medium">Important Notes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>• You cannot apply for leave on the same day</p>
-            <p>• Leave cannot be applied on weekends or public holidays</p>
+            <p>• Same-day leave is allowed except between 10:00 AM and 5:00 PM</p>
+            <p>• Saturday is a working day; leave cannot be applied on Sundays or public holidays</p>
             <p>• Full day counts as 1 day and half day counts as 0.5 day</p>
             <p>• Only working days are counted in your leave balance</p>
             <p>• You will receive a notification once your application is reviewed by the {isPrincipal ? 'Director' : 'Principal / UH'}</p>
