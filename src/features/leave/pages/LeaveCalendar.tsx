@@ -98,7 +98,7 @@ export default function LeaveCalendar() {
                   const isHol = isHolidayDate(day);
                   const isTod = isToday(day);
                   const isSel = selectedDate && isSameDay(day, selectedDate);
-                  const isWeekendDay = getDay(day) === 0 || getDay(day) === 6;
+                  const isWeekendDay = getDay(day) === 0;
 
                   return (
                     <button
