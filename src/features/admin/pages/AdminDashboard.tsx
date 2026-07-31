@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useLeaveApplications } from '@/hooks/use-leave-applications';
 import { Badge } from '@/components/ui/badge';
-import { FileCheck, Users, CheckCircle, XCircle, Clock, Building2, UserPlus, CalendarDays, BarChart3, Tags } from 'lucide-react';
+import { FileCheck, Users, CheckCircle, XCircle, Clock, Building2, UserPlus, CalendarDays, BarChart3, Tags, CircleHelp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/db/supabase';
@@ -136,6 +136,7 @@ export default function AdminDashboard() {
     { label: 'Analytics', to: '/admin/analytics', icon: BarChart3, variant: 'secondary' as const },
     { label: 'Leave Types', to: '/admin/leave-types', icon: Tags, variant: 'secondary' as const },
     { label: 'Departments', to: '/admin/departments', icon: Building2, variant: 'secondary' as const },
+    { label: 'FAQ & Help', to: '/admin/faq', icon: CircleHelp, variant: 'secondary' as const },
   ];
 
   const recentApplications = applications
