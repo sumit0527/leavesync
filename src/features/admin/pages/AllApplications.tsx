@@ -147,6 +147,7 @@
       status: app.status,
       reason: app.reason || '',
       admin_response: app.admin_response || 'N/A',
+    document_status: app.document_url ? 'Attached' : 'Not Attached',
     }));
 
     const exportToExcel = () => {
@@ -159,7 +160,7 @@
       downloadTablePdf({
         title: isDirectorView ? 'Director Review Leave Applications Report' : 'All Leave Applications Report',
         subtitle: `Filter: ${getFilterLabel()}`,
-        headers: ['#', 'Applicant', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Response'],
+        headers: ['#', 'Applicant', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Document', 'Response'],
         rows: rows.map((row) => [
           row.serial,
           row.staff_name,
