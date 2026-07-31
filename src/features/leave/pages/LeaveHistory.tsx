@@ -59,6 +59,7 @@ export default function LeaveHistory() {
       status: app.status,
       reason: app.reason || '',
       admin_response: app.admin_response || 'N/A',
+      document_status: app.document_url ? 'Attached' : 'Not Attached',
     }));
     const staffName = `${profile?.full_name || 'Staff'} (${formatCollegeUnit((profile as any)?.college_unit)} • ${isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff'})`;
     const wb = generateLeaveHistoryReport(rows, staffName, filterLabel);
@@ -71,7 +72,7 @@ export default function LeaveHistory() {
     downloadTablePdf({
       title: 'Leave History Report',
       subtitle: `${isPrincipal ? 'Principal / UH' : 'Staff'}: ${profile?.full_name || (isPrincipal ? 'Principal / UH' : 'Staff')} | Unit: ${formatCollegeUnit((profile as any)?.college_unit)} | Designation: ${isPrincipal ? formatAdminDesignation((profile as any)?.admin_designation) : 'Staff'} | Filter: ${filterLabel}`,
-      headers: ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', reviewerLabel],
+      headers: ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Document', reviewerLabel],
       rows: filteredApplications.map((app, idx) => [
         idx + 1,
         app.leave_type?.name || 'N/A',
@@ -81,6 +82,7 @@ export default function LeaveHistory() {
         app.leave_days,
         app.status.charAt(0).toUpperCase() + app.status.slice(1),
         app.reason || '-',
+        app.document_url ? 'Attached' : 'Not Attached',
         app.admin_response || 'N/A',
       ]),
       filename: `leave_history_${format(new Date(), 'yyyy-MM-dd')}.pdf`,
