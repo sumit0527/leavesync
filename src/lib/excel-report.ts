@@ -401,6 +401,7 @@ export interface LeaveHistoryRow {
   status: string;
   reason: string;
   admin_response: string;
+  document_status?: string;
 }
 
 export function generateLeaveHistoryReport(
@@ -411,8 +412,8 @@ export function generateLeaveHistoryReport(
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  const cols = ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
-  const colWidths = [6, 20, 14, 14, 18, 8, 12, 40, 36];
+  const cols = ['#', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Supporting Document', 'Admin Response'];
+  const colWidths = [6, 20, 14, 14, 18, 8, 12, 40, 22, 36];
   let rowIdx = addCompanyHeader(ws, cols.length, `Leave History — ${staffName} (${filterLabel})`);
 
   cols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
@@ -428,7 +429,8 @@ export function generateLeaveHistoryReport(
     writeCell(ws, rowIdx, 5, row.days, s);
     writeCell(ws, rowIdx, 6, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
     writeCell(ws, rowIdx, 7, row.reason, s);
-    writeCell(ws, rowIdx, 8, row.admin_response || 'N/A', s);
+    writeCell(ws, rowIdx, 8, row.document_status || 'Not Attached', s);
+    writeCell(ws, rowIdx, 9, row.admin_response || 'N/A', s);
     rowIdx++;
   });
 
@@ -463,6 +465,7 @@ export interface AllApplicationsRow {
   status: string;
   reason: string;
   admin_response: string;
+  document_status?: string;
 }
 
 export function generateAllApplicationsReport(
@@ -472,8 +475,8 @@ export function generateAllApplicationsReport(
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
-  const cols = ['#', 'Applicant Name', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Admin Response'];
-  const colWidths = [6, 24, 18, 16, 20, 18, 14, 14, 22, 8, 12, 36, 32];
+  const cols = ['#', 'Applicant Name', 'Unit', 'Designation', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Duration', 'Days', 'Status', 'Reason', 'Supporting Document', 'Admin Response'];
+  const colWidths = [6, 24, 18, 16, 20, 18, 14, 14, 22, 8, 12, 36, 22, 32];
   let rowIdx = addCompanyHeader(ws, cols.length, `All Leave Applications (${filterLabel})`);
 
   cols.forEach((col, c) => writeCell(ws, rowIdx, c, col, headerStyle()));
@@ -493,7 +496,8 @@ export function generateAllApplicationsReport(
     writeCell(ws, rowIdx, 9, row.days, s);
     writeCell(ws, rowIdx, 10, row.status.charAt(0).toUpperCase() + row.status.slice(1), s);
     writeCell(ws, rowIdx, 11, row.reason, s);
-    writeCell(ws, rowIdx, 12, row.admin_response || 'N/A', s);
+    writeCell(ws, rowIdx, 12, row.document_status || 'Not Attached', s);
+    writeCell(ws, rowIdx, 13, row.admin_response || 'N/A', s);
     rowIdx++;
   });
 
