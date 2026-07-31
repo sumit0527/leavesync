@@ -196,7 +196,9 @@ function range(name: 'today' | 'tomorrow' | 'week' | 'month' | 'year' | 'upcomin
 
 function isSensitiveRequest(question: string) {
   const q = norm(question);
-  return /(password|passcode|otp|token|secret|api key|service role|anon key|email address|mail id|email id|mobile|phone|contact number|address|home address|personal address|salary|bank|account number|reason|medical reason|health|disease|diagnosis|private note|session|jwt|key)/.test(q);
+  // Protect direct requests for private/system fields. Do not block ordinary
+  // portal questions such as "why was this rejected?" or "leave reason required?".
+  return /(password|passcode|\botp\b|access token|refresh token|secret|api key|service role key|anon key|email address|mail id|email id|mobile number|phone number|contact number|home address|personal address|salary|bank account|account number|medical details|medical reason|health condition|disease|diagnosis|private note|jwt|session token)/.test(q);
 }
 
 
@@ -495,6 +497,46 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
   const t = topic(filters.resolvedQuestion);
 
   if (/^(hi|hello|hey)$/.test(norm(question))) return 'Hi, ask me about LeaveSync portal data.';
+
+  // Answer portal-policy/help questions before data-topic routing.
+  if (/what can you do|how can you help|available.*features|portal features|help me/.test(q)) {
+    return [
+      'I can safely answer Director/Viewer questions using current LeaveSync data:',
+      '• Staff, Principal/UH, Director and Viewer counts and status',
+      '• Junior, Senior and Pharmacy unit summaries',
+      '• Department-wise staff and leave statistics',
+      '• Leave applications by status, unit, department, person, date and leave type',
+      '• Current-year leave balances and low-balance records',
+      '• Active leave types, Duty Leave and C-Off',
+      '• Holidays, calendar/on-leave summaries, notifications and analytics',
+      '',
+      'I am strictly view-only. I cannot approve, reject, delete, edit, transfer or change portal records, and I do not expose sensitive personal or system information.'
+    ].join('\n');
+  }
+
+  if (/same[ -]?day/.test(q)) {
+    return 'Same-day leave is allowed outside the restricted 10:00 AM to 5:00 PM window. During 10:00 AM–5:00 PM, today cannot be selected. Past dates are not allowed.';
+  }
+
+  if (/saturday|sunday|working day|weekend/.test(q)) {
+    return 'Saturday is a working day in LeaveSync. Sunday is excluded from leave-day calculation and cannot be selected as the start or end date.';
+  }
+
+  if (/document|file upload|supporting file|attachment/.test(q) && !/application/.test(q)) {
+    return 'LeaveSync accepts PDF, JPG/JPEG and PNG supporting documents up to 5 MB. Duty Leave and C-Off require both a reason and a supporting document.';
+  }
+
+  if (/who approves|approval flow|approval process/.test(q)) {
+    return 'Staff leave goes to the Principal/UH of the same college unit. Principal/UH leave goes to the Director. Director and Viewer can view cross-unit records, but Viewer remains read-only.';
+  }
+
+  if (/duty leave/.test(q) && !/(count|show|list|application|who|approved|pending|rejected)/.test(q)) {
+    return 'Duty Leave is for official college duty. A reason and supporting document are mandatory, and it has no fixed yearly allocation.';
+  }
+
+  if (/c-off|c off|coff/.test(q) && !/(count|show|list|application|who|approved|pending|rejected)/.test(q)) {
+    return 'C-Off is compensatory leave for eligible work performed. A reason and supporting document are mandatory, and it has no fixed yearly allocation.';
+  }
 
   // Generic "applications" in Director portal can mean both registration approvals and leave applications.
   // When the user does not clearly say "leave" or "registration", show both safely.
@@ -842,10 +884,14 @@ Deno.serve(async (req) => {
       notifications: notificationsResult.error ? [] : notificationsResult.data ?? [],
     });
 
-    const exact = exactAnswer(context, question, history);
-    const answer = await polishAnswer(question, exact);
+    const answer = exactAnswer(context, question, history);
 
-    return jsonResponse({ answer, transcript: body.audioBase64 ? question : undefined, generatedAt: new Date().toISOString(), mode: 'deterministic_query_engine_plus_gemini_polish' });
+    return jsonResponse({
+      answer,
+      transcript: body.audioBase64 ? question : undefined,
+      generatedAt: new Date().toISOString(),
+      mode: 'deterministic_view_only_query_engine',
+    });
   } catch (error) {
     console.error('ai-portal-insights failed:', error);
     return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 500);
