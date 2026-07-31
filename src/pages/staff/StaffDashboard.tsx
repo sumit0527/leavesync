@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import StaffLayout from '@/components/layouts/StaffLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, CheckCircle, Clock, XCircle, CalendarDays, History, User } from 'lucide-react';
+import { FileText, CheckCircle, Clock, XCircle, CalendarDays, History, User, CircleHelp } from 'lucide-react';
 import { useLeaveStats } from '@/hooks/use-leave-applications';
 import { Link } from 'react-router-dom';
 
@@ -24,6 +24,7 @@ export default function StaffDashboard() {
     { label: 'Leave History', to: '/staff/leave-history', icon: History, variant: 'secondary' as const },
     { label: 'Calendar', to: '/staff/calendar', icon: CalendarDays, variant: 'secondary' as const },
     { label: 'Profile', to: '/staff/profile', icon: User, variant: 'secondary' as const },
+    { label: 'FAQ & Help', to: '/staff/faq', icon: CircleHelp, variant: 'secondary' as const },
   ];
 
   return (
@@ -58,7 +59,7 @@ export default function StaffDashboard() {
             <CardDescription className="text-xs">{isPrincipal ? 'Principal self-service shortcuts' : 'Use these shortcuts to finish common work faster'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
               {quickActions.map((action) => {
                 const Icon = action.icon;
                 return (
