@@ -199,10 +199,20 @@ function isSensitiveRequest(question: string) {
   return /(password|passcode|otp|token|secret|api key|service role|anon key|email address|mail id|email id|mobile|phone|contact number|address|home address|personal address|salary|bank|account number|reason|medical reason|health|disease|diagnosis|private note|session|jwt|key)/.test(q);
 }
 
+
+function isChangeRequest(question: string) {
+  const q = norm(question);
+  return /(delete|remove|approve|reject|cancel|edit|update|change|modify|create|add|insert|upload|send email|reset|deactivate|archive|restore|assign|transfer|move staff|make principal|make director|execute|run query|do it|perform action)/.test(q);
+}
+
+function viewOnlyResponse() {
+  return 'LeaveSync AI is strictly view-only. I cannot approve, reject, delete, edit, upload, assign, transfer, or change portal data. I can safely show available Director/Viewer information such as counts, staff and unit summaries, departments, leave applications, leave balances, leave types, holidays, calendar insights, notifications, and analytics. Use the relevant portal page to perform an authorised action.';
+}
+
 function isPortalRelated(question: string) {
   const q = norm(question);
   if (/^(hi|hello|hey|thanks|thank you)$/.test(q)) return true;
-  return /(leave|application|staff|employee|principal|uh|unit head|director|viewer|department|unit|junior|senior|pharmacy|registration|approval|pending|approved|rejected|allocation|balance|calendar|analytics|report|notification|holiday|today|tomorrow|week|month|year|portal|users?|dashboard|summary|count|total|who|which|how many|show|list|compare)/.test(q);
+  return /(leave|application|staff|employee|principal|uh|unit head|director|viewer|department|unit|junior|senior|pharmacy|registration|approval|pending|approved|rejected|allocation|balance|calendar|analytics|report|notification|holiday|today|tomorrow|week|month|year|portal|users?|dashboard|summary|count|total|who|which|how many|show|list|compare|faq|help|document|upload|duty leave|c-off|half day|same-day|saturday|sunday|feature|can you do|what can you do)/.test(q);
 }
 
 function buildContext(data: { profiles: any[]; leaves: any[]; allocations: any[]; departments: any[]; leaveTypes: any[]; holidays: any[]; notifications: any[] }) {
@@ -469,6 +479,7 @@ function topic(question: string) {
   const q = norm(question);
   if (/department/.test(q)) return 'departments';
   if (/balance|allocation|low balance|remaining/.test(q)) return 'balances';
+  if (/leave type|duty leave|c-off|c off|coff/.test(q)) return 'leave_types';
   if (/holiday/.test(q)) return 'holidays';
   if (/notification/.test(q)) return 'notifications';
   if (/analytics|report|dashboard|overall|summary/.test(q)) return 'analytics';
@@ -611,6 +622,25 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
     return `${titleCase(statusWord)}${roleWord}${unitWord}:\n${formatStatusSummary(users)}\n\n${formatRows(users, (u) => `• ${u.name} (${u.unit}, ${u.role}, ${u.status}) - ${u.department}`, 'users')}`;
   }
 
+
+  if (t === 'leave_types') {
+    const activeOnly = !/(inactive|archived|all leave types)/.test(q);
+    const types = context.leaveTypes.filter((item: any) => !activeOnly || item.active);
+    if (/duty leave/.test(q)) {
+      const item = types.find((x: any) => norm(x.name) === 'duty leave');
+      return item
+        ? `Duty Leave is ${item.active ? 'active' : 'inactive'} in LeaveSync. It is intended for official college duty. The portal policy requires a reason and supporting document, and it does not use a fixed yearly allocation.`
+        : 'Duty Leave is not currently available in the leave-type data.';
+    }
+    if (/c-off|c off|coff/.test(q)) {
+      const item = types.find((x: any) => ['c-off', 'c off', 'coff'].includes(norm(x.name)));
+      return item
+        ? `C-Off is ${item.active ? 'active' : 'inactive'} in LeaveSync. The portal policy requires a reason and supporting document, and it does not use a fixed yearly allocation.`
+        : 'C-Off is not currently available in the leave-type data.';
+    }
+    return `Leave types (${activeOnly ? 'active' : 'all'}):\n${formatRows(types, (item: any) => `• ${item.name} — ${item.active ? 'Active' : 'Inactive'}`, 'leave types')}`;
+  }
+
   if (t === 'holidays') {
     const holidays = context.holidays.filter((h: any) => !filters.units.length || filters.units.includes(h.unit_key));
     return `Holidays:\n${formatRows(holidays, (h: any) => `• ${h.name} - ${prettyDate(h.date)} (${h.unit})`, 'holidays')}`;
@@ -619,6 +649,35 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
   if (t === 'notifications') {
     const n = context.notifications;
     return `Notifications loaded: ${n.length}\nUnread notifications: ${n.filter((x: any) => !x.read).length}\n\nRecent notifications:\n${formatRows(n, (item: any) => `• ${item.title} - ${item.created_at}`, 'notifications')}`;
+  }
+
+
+  if (/what can you do|help|available.*portal|features/.test(q)) {
+    return [
+      'I can safely view and explain these LeaveSync areas:',
+      '• Staff, Principal/UH, Director and Viewer counts/status',
+      '• Junior, Senior and Pharmacy unit summaries',
+      '• Department-wise staff and leave statistics',
+      '• Leave applications by status, unit, department, person, date and leave type',
+      '• Current-year leave balances and low-balance records',
+      '• Active leave types, including Duty Leave and C-Off',
+      '• Holidays, calendar/on-leave summaries and notifications',
+      '• Analytics and report-style summaries',
+      '',
+      'I am view-only and cannot change any portal data. Sensitive personal/system information is protected.'
+    ].join('\n');
+  }
+
+  if (/same-day/.test(q)) {
+    return 'Same-day leave can be selected outside the restricted 10:00 AM to 5:00 PM window. Past dates are not allowed.';
+  }
+
+  if (/saturday|sunday/.test(q)) {
+    return 'Saturday is treated as a working day. Sunday is excluded from leave-day calculation and cannot be selected as the start or end date.';
+  }
+
+  if (/document|upload/.test(q)) {
+    return 'LeaveSync accepts PDF, JPG/JPEG and PNG supporting documents up to 5 MB. Duty Leave and C-Off require a supporting document.';
   }
 
   // Analytics and general dashboard summary
@@ -727,6 +786,15 @@ Deno.serve(async (req) => {
     let question = clean(body.question);
     if (body.audioBase64) question = await transcribeWithGemini(body.audioBase64, clean(body.audioMimeType || 'audio/webm'));
     if (!question || question === '-') return jsonResponse({ error: 'Question is required.' }, 400);
+
+    if (isChangeRequest(question)) {
+      return jsonResponse({
+        answer: viewOnlyResponse(),
+        transcript: body.audioBase64 ? question : undefined,
+        generatedAt: new Date().toISOString(),
+        mode: 'view_only_guard',
+      });
+    }
 
     if (isSensitiveRequest(question)) {
       return jsonResponse({
