@@ -5,88 +5,94 @@ import { Button } from '@/components/ui/button';
 import { useNotifications } from '@/hooks/use-notifications';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { Bell, CheckCheck } from 'lucide-react';
-
-function isPrincipalManagementNotification(notification: any) {
-  const text = `${notification.title ?? ''} ${notification.message ?? ''} ${notification.type ?? ''}`.toLowerCase();
-  return (
-    text.includes('staff registration pending') ||
-    text.includes('staff leave request pending') ||
-    text.includes('staff_registration_pending') ||
-    text.includes('staff_leave_pending') ||
-    text.includes('review required') ||
-    text.includes('request inbox')
-  );
-}
+import { Bell, CheckCheck, RefreshCw } from 'lucide-react';
 
 export default function Notifications() {
   const { profile, isPrincipal } = useAuth();
-  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(profile?.id);
-
-  const visibleNotifications = isPrincipal
-    ? notifications.filter((notification) => !isPrincipalManagementNotification(notification))
-    : notifications;
-
-  const markVisibleAsRead = async () => {
-    if (!isPrincipal) {
-      await markAllAsRead();
-      return;
-    }
-    await Promise.all(visibleNotifications.filter(n => !n.is_read).map(n => markAsRead(n.id)));
-  };
+  const { notifications, loading, markAsRead, markAllAsRead, refetch } =
+    useNotifications(profile?.id);
 
   return (
     <StaffLayout>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-playfair-display font-bold leading-tight gradient-text sm:text-3xl">{isPrincipal ? 'Principal Leave Notifications' : 'Notifications'}</h1>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">{isPrincipal ? 'Only your own Principal leave/account updates appear here' : 'Stay updated on your leave applications'}</p>
+            <h1 className="text-2xl font-playfair-display font-bold leading-tight gradient-text sm:text-3xl">
+              {isPrincipal ? 'My Leave Notifications' : 'Notifications'}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Only unread updates are shown. Marking one as read removes it from this inbox.
+            </p>
           </div>
-          {visibleNotifications.some(n => !n.is_read) && (
-            <Button onClick={markVisibleAsRead} variant="secondary" size="sm" className="w-full shrink-0 whitespace-normal text-center sm:w-auto sm:whitespace-nowrap">
-              <CheckCheck className="mr-2 h-4 w-4" />
-              Mark all read
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              onClick={() => refetch()}
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
             </Button>
-          )}
+            {notifications.length > 0 && (
+              <Button
+                onClick={markAllAsRead}
+                variant="secondary"
+                size="sm"
+                className="w-full whitespace-normal sm:w-auto sm:whitespace-nowrap"
+              >
+                <CheckCheck className="mr-2 h-4 w-4" />
+                Mark all as read
+              </Button>
+            )}
+          </div>
         </div>
 
         {loading ? (
           <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground">Loading...</p>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              Loading notifications...
             </CardContent>
           </Card>
-        ) : visibleNotifications.length === 0 ? (
+        ) : notifications.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center">
+            <CardContent className="p-10 text-center">
               <Bell className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No notifications yet</p>
+              <p className="mt-4 font-medium">You are all caught up</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                New leave updates will appear here automatically.
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
-            {visibleNotifications.map((notification) => (
-              <Card
-                key={notification.id}
-                className={`transition-all ${!notification.is_read ? 'border-primary' : ''}`}
-              >
-                <CardHeader>
+            {notifications.map((notification) => (
+              <Card key={notification.id} className="border-primary/50">
+                <CardHeader className="pb-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <CardTitle className="break-words text-sm leading-snug sm:text-base">{notification.title}</CardTitle>
-                    {!notification.is_read && <Badge variant="default" className="w-fit">New</Badge>}
+                    <div className="min-w-0">
+                      <CardTitle className="break-words text-sm leading-snug sm:text-base">
+                        {notification.title}
+                      </CardTitle>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
+                      </p>
+                    </div>
+                    <Badge className="w-fit">New</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="break-words text-sm leading-relaxed text-muted-foreground">{notification.message}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(notification.created_at), 'MMM dd, yyyy HH:mm')}
+                  <p className="break-words text-sm leading-relaxed text-muted-foreground">
+                    {notification.message}
                   </p>
-                  {!notification.is_read && (
-                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => markAsRead(notification.id)}>
-                      Mark as Read
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => markAsRead(notification.id)}
+                  >
+                    Mark as Read
+                  </Button>
                 </CardContent>
               </Card>
             ))}
