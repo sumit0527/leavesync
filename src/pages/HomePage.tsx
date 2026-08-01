@@ -544,12 +544,12 @@ export default function HomePage() {
 
             <img
               src={CAMPUS_URL}
-              alt="G.D. Sawant College of Technology Campus"
+              alt="Godavari Shikshan Mandal Campus"
               className="w-full block opacity-90 hover:opacity-100 transition-opacity duration-500"
             />
           </div>
           <p className="font-playfair-display text-sm sm:text-base md:text-lg text-muted-foreground tracking-[2px] sm:tracking-[3px] uppercase mt-5 opacity-0 intersect:opacity-100 transition duration-700" style={{ transitionDelay: '200ms' }}>
-            G.D. Sawant College of Technology
+            Godavari Shikshan Mandal
           </p>
         </section>
 
@@ -563,7 +563,7 @@ export default function HomePage() {
             />
           </div>
           <p className="font-playfair-display text-sm text-muted-foreground tracking-[3px] uppercase">
-            G.D. Sawant College of Technology
+            Godavari Shikshan Mandal
           </p>
           <p className="text-xs text-muted-foreground/40 mt-2 tracking-wider">
             leaveSYNC &copy; 2026 &middot; All Rights Reserved
