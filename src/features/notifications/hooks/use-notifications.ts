@@ -47,17 +47,36 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
       // Principal => pending staff registrations + pending staff leaves
       // Director => pending Principal registrations + pending Principal leaves.
       if (scope === 'principal' || scope === 'director' || scope === 'all') {
-        const { data, error } = await supabase.rpc('get_management_notifications', {
-          p_scope: scope,
-        });
+        const [{ data: requestData, error: requestError }, { data: ownData, error: ownError }] = await Promise.all([
+          supabase.rpc('get_management_notifications', {
+            p_scope: scope,
+          }),
+          userId
+            ? supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(100)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
 
-        if (error) throw error;
-        rows = (data ?? []) as Notification[];
+        if (requestError) throw requestError;
+        if (ownError) throw ownError;
 
-        // Request-inbox items are generated from current pending data, not always stored rows.
-        // Mark as Read hides them from this user's popup/inbox until the request changes.
+        // Management roles need both:
+        // 1) pending requests waiting for their action, and
+        // 2) personal notifications about their own account/leave applications.
         const dismissed = new Set(readDismissedIds(userId, scope));
-        rows = rows.filter((row) => !dismissed.has(row.id));
+        const requestRows = ((requestData ?? []) as Notification[])
+          .filter((row) => !dismissed.has(row.id));
+        const ownRows = (ownData ?? []) as Notification[];
+
+        const merged = new Map<string, Notification>();
+        [...ownRows, ...requestRows].forEach((row) => merged.set(row.id, row));
+        rows = Array.from(merged.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       } else {
         const { data, error } = await supabase
           .from('notifications')
@@ -86,56 +105,64 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   }, [fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
-    // Principal/Director request-inbox rows may be generated virtual rows.
-    // Hide them locally so the bell popup/count can be cleared without changing the real request.
-    if (scope === 'principal' || scope === 'director' || scope === 'all') {
-      const nextDismissed = [...readDismissedIds(userId, scope), notificationId];
-      writeDismissedIds(userId, scope, nextDismissed);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      setUnreadCount(prev => Math.max(0, prev - 1));
-      return;
-    }
+    const selected = notifications.find((notification) => notification.id === notificationId);
+    const isOwnStoredNotification = Boolean(userId && selected?.user_id === userId);
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId);
+      if (isOwnStoredNotification) {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('id', notificationId)
+          .eq('user_id', userId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setNotifications(prev =>
-        prev.map(n => (n.id === notificationId ? { ...n, is_read: true } : n))
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications(prev =>
+          prev.map(n => (n.id === notificationId ? { ...n, is_read: true } : n))
+        );
+      } else if (scope === 'principal' || scope === 'director' || scope === 'all') {
+        const nextDismissed = [...readDismissedIds(userId, scope), notificationId];
+        writeDismissedIds(userId, scope, nextDismissed);
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      }
+
+      if (!selected?.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
     }
   };
 
   const markAllAsRead = async () => {
-    if (scope === 'principal' || scope === 'director' || scope === 'all') {
-      const allIds = notifications.map(n => n.id);
-      writeDismissedIds(userId, scope, [...readDismissedIds(userId, scope), ...allIds]);
-      setNotifications([]);
-      setUnreadCount(0);
-      return;
-    }
-
     if (!userId) return;
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', userId)
-        .eq('is_read', false);
+      const ownNotifications = notifications.filter(n => n.user_id === userId);
+      const requestNotifications = notifications.filter(n => n.user_id !== userId);
 
-      if (error) throw error;
+      if (ownNotifications.some(n => !n.is_read)) {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('user_id', userId)
+          .eq('is_read', false);
 
-      setNotifications(prev =>
-        prev.map(n => (n.user_id === userId ? { ...n, is_read: true } : n))
-      );
+        if (error) throw error;
+      }
+
+      if (scope === 'principal' || scope === 'director' || scope === 'all') {
+        const requestIds = requestNotifications.map(n => n.id);
+        writeDismissedIds(userId, scope, [
+          ...readDismissedIds(userId, scope),
+          ...requestIds,
+        ]);
+        setNotifications(ownNotifications.map(n => ({ ...n, is_read: true })));
+      } else {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      }
+
       setUnreadCount(0);
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
