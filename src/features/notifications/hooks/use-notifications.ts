@@ -69,8 +69,10 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
         // 2) personal notifications about their own account/leave applications.
         const dismissed = new Set(readDismissedIds(userId, scope));
         const requestRows = ((requestData ?? []) as Notification[])
-          .filter((row) => !dismissed.has(row.id));
-        const ownRows = (ownData ?? []) as Notification[];
+          .filter((row) => !dismissed.has(row.id))
+          .map((row) => ({ ...row, __source: 'request' } as Notification));
+        const ownRows = ((ownData ?? []) as Notification[])
+          .map((row) => ({ ...row, __source: 'personal' } as Notification));
 
         const merged = new Map<string, Notification>();
         [...ownRows, ...requestRows].forEach((row) => merged.set(row.id, row));
