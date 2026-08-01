@@ -194,6 +194,23 @@ Deno.serve(async (req) => {
         .eq('id', tokenRow.target_id);
       if (error) throw error;
 
+      const { data: leaveApplicantProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('id, role, full_name')
+        .eq('id', leaveApplication.staff_id)
+        .maybeSingle();
+
+      if (['admin', 'principal'].includes(String(leaveApplicantProfile?.role ?? '').toLowerCase())) {
+        const decisionWord = newStatus === 'approved' ? 'Approved' : 'Rejected';
+        const { error: notificationError } = await supabaseAdmin.from('notifications').insert({
+          user_id: leaveApplication.staff_id,
+          title: `Principal / UH Leave ${decisionWord}`,
+          message: `Your leave application was ${decisionWord.toLowerCase()} by ${actorProfileName || 'Director'}.${reviewerNote ? ` Response: ${reviewerNote}` : ''}`,
+          type: newStatus === 'approved' ? 'leave_approved' : 'leave_rejected',
+        });
+        if (notificationError) console.error('Principal/UH leave notification insert failed:', notificationError);
+      }
+
       const reviewerRoleLabel = ['main_admin', 'director'].includes(String(tokenRow.actor_role)) ? 'Director' : 'Principal / UH';
       const decisionResponse = await fetch(`${supabaseUrl}/functions/v1/send-registration-decision-email`, {
         method: 'POST',
