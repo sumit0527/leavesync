@@ -30,6 +30,11 @@ type LeaveRecord = {
   end_date: string;
   applied_on: string;
   age_hours: number;
+  reviewed_by: string;
+  reviewed_at: string;
+  decision_response: string;
+  document_attached: boolean;
+  duration: string;
 };
 
 type AllocationRecord = {
@@ -247,6 +252,13 @@ function buildContext(data: { profiles: any[]; leaves: any[]; allocations: any[]
       end_date: dateOnly(leave?.end_date),
       applied_on: dateTime(leave?.created_at),
       age_hours: Math.max(0, Math.round((Date.now() - created) / 36_000) / 10),
+      reviewed_by: clean(leave?.reviewer?.full_name),
+      reviewed_at: dateTime(leave?.reviewed_at),
+      decision_response: clean(leave?.admin_response),
+      document_attached: Boolean(leave?.document_url),
+      duration: leave?.leave_duration === 'half_day'
+        ? `Half Day (${leave?.half_day_period === 'second_half' ? 'Second Half' : 'First Half'})`
+        : 'Full Day',
     };
   });
 
@@ -661,7 +673,7 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
     const unitWord = filters.units.length ? ` in ${filters.units.map((u) => unitLabel[u]).join(', ')}` : '';
     const statusWord = filters.statuses.length ? `${filters.statuses.join('/')} ` : '';
     if (filters.wantsCount || !filters.wantsList) return `${statusWord}${roleWord}${unitWord}: ${users.length}`;
-    return `${titleCase(statusWord)}${roleWord}${unitWord}:\n${formatStatusSummary(users)}\n\n${formatRows(users, (u) => `• ${u.name} (${u.unit}, ${u.role}, ${u.status}) - ${u.department}`, 'users')}`;
+    return `${titleCase(statusWord)}${roleWord}${unitWord}:\n${formatStatusSummary(users)}\n\n${formatRows(users, (u) => `• ${u.name} — Role: ${u.role}; Unit: ${u.unit}; Department: ${u.department}; Account: ${titleCase(u.status)}; Employment: ${u.active_status}`, 'users')}\n\nPrivate contact details such as email, phone number and address are never shown.`;
   }
 
 
@@ -704,9 +716,9 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
       '• Current-year leave balances and low-balance records',
       '• Active leave types, including Duty Leave and C-Off',
       '• Holidays, calendar/on-leave summaries and notifications',
-      '• Analytics and report-style summaries',
+      '• Analytics, report-style summaries, approval reviewer/response, duration and document-attached status',
       '',
-      'I am view-only and cannot change any portal data. Sensitive personal/system information is protected.'
+      'I have read-only access to the available Director/Viewer portal dataset. I cannot change any record. Email, phone number, address, passwords, tokens, detailed leave reasons and document links are protected.'
     ].join('\n');
   }
 
@@ -858,7 +870,7 @@ Deno.serve(async (req) => {
 
     const [profilesResult, leavesResult, allocationsResult, departmentsResult, leaveTypesResult, holidaysResult, notificationsResult] = await Promise.all([
       admin.from('profiles').select('id, full_name, role, approval_status, college_unit, admin_designation, employment_status, active, department:departments(name)').limit(5000),
-      admin.from('leave_applications').select('id, status, leave_days, start_date, end_date, created_at, staff:profiles!leave_applications_staff_id_fkey(id, full_name, role, college_unit, admin_designation, employment_status, department:departments(name)), leave_type:leave_types(name)').order('created_at', { ascending: false }).limit(5000),
+      admin.from('leave_applications').select('id, status, leave_days, start_date, end_date, created_at, reviewed_at, admin_response, document_url, leave_duration, half_day_period, staff:profiles!leave_applications_staff_id_fkey(id, full_name, role, approval_status, college_unit, admin_designation, employment_status, department:departments(name)), reviewer:profiles!leave_applications_reviewed_by_fkey(full_name), leave_type:leave_types(name)').order('created_at', { ascending: false }).limit(5000),
       admin.from('staff_leave_allocations').select('total_allocated, used, remaining, year, staff:profiles(id, full_name, role, college_unit, admin_designation, employment_status), leave_type:leave_types(name)').limit(8000),
       admin.from('departments').select('id, name, college_unit').order('college_unit', { ascending: true }).limit(1500),
       admin.from('leave_types').select('id, name, default_days, max_days, is_active').limit(500),
