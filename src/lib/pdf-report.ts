@@ -27,7 +27,7 @@ export function downloadTablePdf({
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('G.D. Sawant College of Technology — leaveSYNC', pageWidth / 2, 32, { align: 'center' });
+  doc.text('Godavari Shikshan Mandal — leaveSYNC', pageWidth / 2, 32, { align: 'center' });
   doc.setFontSize(12);
   doc.text(title, pageWidth / 2, 50, { align: 'center' });
   doc.setFont('helvetica', 'normal');
@@ -107,7 +107,7 @@ export function downloadSectionedPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(30);
-    doc.text('G.D. Sawant College of Technology — leaveSYNC', pageWidth / 2, 32, { align: 'center' });
+    doc.text('Godavari Shikshan Mandal — leaveSYNC', pageWidth / 2, 32, { align: 'center' });
     doc.setFontSize(12);
     doc.text(title, pageWidth / 2, 50, { align: 'center' });
     doc.setFont('helvetica', 'normal');
