@@ -1,22 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/db/supabase';
 import type { Notification } from '@/types';
 
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
-export type PortalNotification = Notification & {
-  __source?: 'request' | 'personal';
-};
+export type PortalNotification = Notification;
 
-export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
+/**
+ * Notification inbox rules:
+ * - The database creates a notification only for the exact intended recipient.
+ * - This hook loads unread notifications only.
+ * - Marking a notification as read removes it from the visible inbox immediately.
+ * - The notification page is not an approval queue; pending work remains available
+ *   in the relevant Registration / View Leave pages even after the alert is read.
+ */
+export function useNotifications(userId?: string, _scope: NotificationScope = 'own') {
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async (silent = false) => {
     if (!userId) {
       setNotifications([]);
-      setUnreadCount(0);
       setErrorMessage(null);
       setLoading(false);
       return;
@@ -26,156 +30,103 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
       if (!silent) setLoading(true);
       setErrorMessage(null);
 
-      const personalPromise = supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
+        .eq('is_read', false)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(50);
 
-      if (scope === 'own') {
-        const { data, error } = await personalPromise;
-        if (error) throw error;
-
-        const personalRows = ((data ?? []) as Notification[]).map((row) => ({
-          ...row,
-          __source: 'personal' as const,
-        }));
-
-        setNotifications(personalRows);
-        setUnreadCount(personalRows.filter((row) => !row.is_read).length);
-        return;
-      }
-
-      // Management portals contain two strictly separated sources:
-      // 1. Current pending requests for this approver's exact scope.
-      // 2. The signed-in user's own leave/account updates only.
-      const [requestResult, personalResult] = await Promise.all([
-        supabase.rpc('get_management_notifications'),
-        personalPromise,
-      ]);
-
-      if (requestResult.error) {
-        console.error('Management notification RPC failed:', requestResult.error);
-        setErrorMessage('Pending requests could not be loaded. Run the final notification SQL migration in Supabase.');
-      }
-
-      if (personalResult.error) {
-        console.error('Personal notifications failed:', personalResult.error);
-        setErrorMessage((current) => current ?? 'Your personal notifications could not be loaded.');
-      }
-
-      const requestRows = requestResult.error
-        ? []
-        : (((requestResult.data ?? []) as Notification[]).map((row) => ({
-            ...row,
-            __source: 'request' as const,
-            is_read: false,
-          })) as PortalNotification[]);
-
-      const personalRows = personalResult.error
-        ? []
-        : (((personalResult.data ?? []) as Notification[]).map((row) => ({
-            ...row,
-            __source: 'personal' as const,
-          })) as PortalNotification[]);
-
-      const rows = [...requestRows, ...personalRows].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setNotifications(rows);
-      setUnreadCount(
-        requestRows.length + personalRows.filter((row) => !row.is_read).length
-      );
+      if (error) throw error;
+      setNotifications((data ?? []) as PortalNotification[]);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
-      setNotifications([]);
-      setUnreadCount(0);
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to load notifications.');
+      if (!silent) setNotifications([]);
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Failed to load notifications.'
+      );
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [userId, scope]);
+  }, [userId]);
 
   useEffect(() => {
+    if (!userId) return;
+
     fetchNotifications();
 
-    // A lightweight refresh keeps management pending lists accurate even when
-    // approval happens from another browser or from an email action link.
-    const intervalId = window.setInterval(() => {
-      fetchNotifications(true);
-    }, 30_000);
+    // Realtime insert/update events make new alerts appear without requiring a demo
+    // refresh. A periodic refresh remains as a safe fallback.
+    const channel = supabase
+      .channel(`notifications-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => fetchNotifications(true)
+      )
+      .subscribe();
 
+    const intervalId = window.setInterval(() => fetchNotifications(true), 30_000);
     const refreshOnFocus = () => fetchNotifications(true);
     window.addEventListener('focus', refreshOnFocus);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshOnFocus);
+      supabase.removeChannel(channel);
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, userId]);
 
   const markAsRead = async (notificationId: string) => {
     if (!userId) return;
 
-    const target = notifications.find((row) => row.id === notificationId);
-    if (target?.__source === 'request') return;
+    // Optimistic removal keeps the inbox calm and uncluttered.
+    const previous = notifications;
+    setNotifications((rows) => rows.filter((row) => row.id !== notificationId));
 
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId)
-        .eq('user_id', userId);
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId)
+      .eq('user_id', userId);
 
-      if (error) throw error;
-
-      setNotifications((previous) =>
-        previous.map((notification) =>
-          notification.id === notificationId
-            ? { ...notification, is_read: true }
-            : notification
-        )
-      );
-      setUnreadCount((previous) => Math.max(0, previous - 1));
-    } catch (error) {
+    if (error) {
       console.error('Failed to mark notification as read:', error);
+      setNotifications(previous);
+      throw error;
     }
   };
 
   const markAllAsRead = async () => {
-    if (!userId) return;
+    if (!userId || notifications.length === 0) return;
 
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', userId)
-        .eq('is_read', false);
+    const previous = notifications;
+    const ids = notifications.map((row) => row.id);
+    setNotifications([]);
 
-      if (error) throw error;
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false)
+      .in('id', ids);
 
-      const newlyRead = notifications.filter(
-        (row) => row.__source !== 'request' && !row.is_read
-      ).length;
-
-      setNotifications((previous) =>
-        previous.map((notification) =>
-          notification.__source === 'request'
-            ? notification
-            : { ...notification, is_read: true }
-        )
-      );
-      setUnreadCount((previous) => Math.max(0, previous - newlyRead));
-    } catch (error) {
+    if (error) {
       console.error('Failed to mark all notifications as read:', error);
+      setNotifications(previous);
+      throw error;
     }
   };
 
   return {
     notifications,
-    unreadCount,
+    unreadCount: notifications.length,
     loading,
     errorMessage,
     markAsRead,
