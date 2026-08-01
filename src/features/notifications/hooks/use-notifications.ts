@@ -58,8 +58,16 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
 
     // Realtime insert/update events make new alerts appear without requiring a demo
     // refresh. A periodic refresh remains as a safe fallback.
+    // Several parts of the portal use this hook at the same time (layout badge +
+    // notifications page). Supabase does not allow adding postgres_changes
+    // callbacks to an already-subscribed channel, so every hook instance must use
+    // its own unique channel name.
+    const channelName = `notifications-${userId}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}`;
+
     const channel = supabase
-      .channel(`notifications-${userId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -70,7 +78,11 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
         },
         () => fetchNotifications(true)
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`Notification realtime channel ${status}; polling remains active.`);
+        }
+      });
 
     const intervalId = window.setInterval(() => fetchNotifications(true), 30_000);
     const refreshOnFocus = () => fetchNotifications(true);
