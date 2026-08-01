@@ -28,7 +28,7 @@ type HalfDayPeriod = 'first_half' | 'second_half';
 export default function ApplyLeave() {
   const { profile, isPrincipal } = useAuth();
   const navigate = useNavigate();
-  const { isValidLeaveDate, isSameDayBlockedNow } = useHolidays();
+  const { holidays, isValidLeaveDate, isSameDayBlockedNow } = useHolidays();
   const { leaveTypes } = useLeaveTypes();
   const { allocations, refetch: refetchAllocations } = useLeaveAllocations(profile?.id);
   const [startDate, setStartDate] = useState<Date>();
@@ -217,6 +217,43 @@ export default function ApplyLeave() {
     });
     return Number(data || 0);
   };
+
+  const normalizedLeaveTypeName = (selectedLeaveType?.name ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-');
+
+  const isSickLeave = normalizedLeaveTypeName.includes('sick');
+  const isAlwaysDocumentRequired =
+    normalizedLeaveTypeName === 'duty-leave'
+    || normalizedLeaveTypeName === 'c-off'
+    || normalizedLeaveTypeName === 'coff';
+
+  const getSelectedWorkingDays = (): number => {
+    if (!startDate || !endDate) return 0;
+    if (leaveDuration === 'half_day') return 0.5;
+
+    const holidayDates = new Set(holidays.map((holiday) => holiday.date));
+    const current = new Date(startDate);
+    const last = new Date(endDate);
+    let total = 0;
+
+    while (current <= last) {
+      const dateKey = format(current, 'yyyy-MM-dd');
+      if (current.getDay() !== 0 && !holidayDates.has(dateKey)) {
+        total += 1;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return total;
+  };
+
+  const selectedWorkingDays = getSelectedWorkingDays();
+  const isDocumentRequired =
+    isSickLeave
+      ? selectedWorkingDays > 2
+      : isAlwaysDocumentRequired || Boolean(selectedLeaveType?.requires_document);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -408,8 +445,17 @@ ${email.body}`);
         return;
       }
 
-      if (!document && selectedLeaveType?.requires_document) {
-        toast.error(`Supporting document is mandatory for ${selectedLeaveType.name}`);
+      const documentRequiredForApplication =
+        isSickLeave
+          ? leaveDays > 2
+          : isAlwaysDocumentRequired || Boolean(selectedLeaveType?.requires_document);
+
+      if (!document && documentRequiredForApplication) {
+        toast.error(
+          isSickLeave
+            ? 'Supporting document is mandatory only when Sick Leave is more than 2 working days'
+            : `Supporting document is mandatory for ${selectedLeaveType?.name ?? 'this leave type'}`
+        );
         setLoading(false);
         return;
       }
@@ -586,7 +632,7 @@ ${email.body}`);
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="document">Supporting Document {selectedLeaveType?.requires_document ? '*' : '(Optional)'}</Label>
+                <Label htmlFor="document">Supporting Document {isDocumentRequired ? '*' : '(Optional)'}</Label>
                 <div className="flex items-center gap-3">
                   <Input ref={documentInputRef} id="document" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="px-3" />
                   {document && (
@@ -598,7 +644,15 @@ ${email.body}`);
                   {startDate && endDate && (
                     <div className="flex items-start gap-2 text-xs">
                       <AlertCircle className="h-3 w-3 mt-0.5 text-amber-600" />
-                      <span className="text-amber-600">Document is mandatory whenever the selected leave type requires it</span>
+                      <span className="text-amber-600">
+                        {isSickLeave
+                          ? (selectedWorkingDays > 2
+                            ? `Document is mandatory because Sick Leave is ${selectedWorkingDays} working days`
+                            : `Document is optional for Sick Leave up to 2 working days (${selectedWorkingDays} selected)`)
+                          : (isDocumentRequired
+                            ? `Document is mandatory for ${selectedLeaveType?.name ?? 'this leave type'}`
+                            : 'Supporting document is optional')}
+                      </span>
                     </div>
                   )}
                 </div>
