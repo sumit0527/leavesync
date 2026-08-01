@@ -3,75 +3,124 @@ import { supabase } from '@/db/supabase';
 import type { Notification } from '@/types';
 
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
+export type PortalNotification = Notification & {
+  __source?: 'request' | 'personal';
+};
 
 export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (silent = false) => {
     if (!userId) {
       setNotifications([]);
       setUnreadCount(0);
+      setErrorMessage(null);
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
+      setErrorMessage(null);
 
-      if (scope === 'principal' || scope === 'director' || scope === 'all') {
-        // Management notification inbox is generated from current database state.
-        // It contains ONLY records that are still pending and already applies:
-        // - Principal/UH: same-unit staff registrations and staff leave requests
-        // - Director/Viewer: Principal/UH registrations and Principal/UH leave requests
-        const { data, error } = await supabase.rpc('get_management_notifications', {
-          p_scope: scope,
-        });
-
-        if (error) throw error;
-
-        const rows = ((data ?? []) as Notification[]).map((row) => ({
-          ...row,
-          __source: 'request',
-          is_read: false,
-        })) as Notification[];
-
-        setNotifications(rows);
-        setUnreadCount(rows.length);
-        return;
-      }
-
-      // Staff portal: personal stored notifications only.
-      const { data, error } = await supabase
+      const personalPromise = supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) throw error;
+      if (scope === 'own') {
+        const { data, error } = await personalPromise;
+        if (error) throw error;
 
-      const rows = (data ?? []) as Notification[];
+        const personalRows = ((data ?? []) as Notification[]).map((row) => ({
+          ...row,
+          __source: 'personal' as const,
+        }));
+
+        setNotifications(personalRows);
+        setUnreadCount(personalRows.filter((row) => !row.is_read).length);
+        return;
+      }
+
+      // Management portals contain two strictly separated sources:
+      // 1. Current pending requests for this approver's exact scope.
+      // 2. The signed-in user's own leave/account updates only.
+      const [requestResult, personalResult] = await Promise.all([
+        supabase.rpc('get_management_notifications'),
+        personalPromise,
+      ]);
+
+      if (requestResult.error) {
+        console.error('Management notification RPC failed:', requestResult.error);
+        setErrorMessage('Pending requests could not be loaded. Run the final notification SQL migration in Supabase.');
+      }
+
+      if (personalResult.error) {
+        console.error('Personal notifications failed:', personalResult.error);
+        setErrorMessage((current) => current ?? 'Your personal notifications could not be loaded.');
+      }
+
+      const requestRows = requestResult.error
+        ? []
+        : (((requestResult.data ?? []) as Notification[]).map((row) => ({
+            ...row,
+            __source: 'request' as const,
+            is_read: false,
+          })) as PortalNotification[]);
+
+      const personalRows = personalResult.error
+        ? []
+        : (((personalResult.data ?? []) as Notification[]).map((row) => ({
+            ...row,
+            __source: 'personal' as const,
+          })) as PortalNotification[]);
+
+      const rows = [...requestRows, ...personalRows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
       setNotifications(rows);
-      setUnreadCount(rows.filter((notification) => !notification.is_read).length);
+      setUnreadCount(
+        requestRows.length + personalRows.filter((row) => !row.is_read).length
+      );
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       setNotifications([]);
       setUnreadCount(0);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load notifications.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [userId, scope]);
 
   useEffect(() => {
     fetchNotifications();
+
+    // A lightweight refresh keeps management pending lists accurate even when
+    // approval happens from another browser or from an email action link.
+    const intervalId = window.setInterval(() => {
+      fetchNotifications(true);
+    }, 30_000);
+
+    const refreshOnFocus = () => fetchNotifications(true);
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
   }, [fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
-    // Pending management requests must remain visible until they are actually
-    // approved or rejected. They cannot be dismissed as "read".
-    if (scope !== 'own' || !userId) return;
+    if (!userId) return;
+
+    const target = notifications.find((row) => row.id === notificationId);
+    if (target?.__source === 'request') return;
 
     try {
       const { error } = await supabase
@@ -96,8 +145,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
   };
 
   const markAllAsRead = async () => {
-    // Management requests are live pending work items and cannot be cleared.
-    if (scope !== 'own' || !userId) return;
+    if (!userId) return;
 
     try {
       const { error } = await supabase
@@ -108,10 +156,18 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
 
       if (error) throw error;
 
+      const newlyRead = notifications.filter(
+        (row) => row.__source !== 'request' && !row.is_read
+      ).length;
+
       setNotifications((previous) =>
-        previous.map((notification) => ({ ...notification, is_read: true }))
+        previous.map((notification) =>
+          notification.__source === 'request'
+            ? notification
+            : { ...notification, is_read: true }
+        )
       );
-      setUnreadCount(0);
+      setUnreadCount((previous) => Math.max(0, previous - newlyRead));
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
     }
@@ -121,6 +177,7 @@ export function useNotifications(userId?: string, scope: NotificationScope = 'ow
     notifications,
     unreadCount,
     loading,
+    errorMessage,
     markAsRead,
     markAllAsRead,
     refetch: fetchNotifications,
