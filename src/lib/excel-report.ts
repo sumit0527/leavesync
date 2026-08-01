@@ -139,7 +139,7 @@ function addCompanyHeader(ws: XLSX.WorkSheet, colCount: number, reportTitle: str
   const generatedAt = format(new Date(), 'dd MMM yyyy, hh:mm a');
 
   // Row 0: Company name
-  ws['A1'] = { v: 'G.D. Sawant College of Technology — LeaveSync', t: 's', s: titleStyle() };
+  ws['A1'] = { v: 'Godavari Shikshan Mandal — LeaveSync', t: 's', s: titleStyle() };
   mergeCells(ws, [`A1:${lastCol}1`]);
 
   // Row 1: Report title
