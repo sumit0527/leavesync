@@ -26,11 +26,11 @@ export default function AdminNotifications() {
       : `${portalRoleLabel} Notifications`;
 
   const description = isPrincipal
-    ? 'Only pending staff registrations and pending staff leave requests are shown here. Once handled, they disappear from this inbox.'
+    ? 'Shows pending staff requests for your action and personal updates about your own leave applications.'
     : (isMainAdmin || isViewer)
       ? isViewer
         ? 'Read-only notification view. You can view Director-level pending Principal and staff requests, but cannot mark, approve, reject, or change anything.'
-        : 'Director-level request view: pending Principal registrations, pending Principal leave requests, pending staff registrations, and pending staff leave requests are visible here.'
+        : 'Shows Director-level pending requests and personal updates about your own leave applications.'
       : 'Read-only notification records.';
 
   return (
@@ -59,7 +59,7 @@ export default function AdminNotifications() {
           <Card>
             <CardContent className="p-8 text-center">
               <Bell className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 font-medium">No pending requests</p>
+              <p className="mt-4 font-medium">No notifications</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isPrincipal
                   ? 'There are no staff registrations or staff leave requests waiting for Principal action.'
