@@ -10,13 +10,13 @@
     {
       "src": "/new-favicon.png",
       "sizes": "499x508",
-      "type": "image/png"
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
       "src": "/new-favicon.png",
       "sizes": "499x508",
-      "type": "image/png"
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
