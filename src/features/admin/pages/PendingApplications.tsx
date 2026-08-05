@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -14,7 +15,7 @@ import { useLeaveTypes } from '@/hooks/use-leave-types';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, FileText, Loader2, ExternalLink, Search, Sparkles } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Loader2, ExternalLink, Search, Sparkles, BellRing } from 'lucide-react';
 import type { LeaveApplication } from '@/types';
 
 
@@ -22,6 +23,15 @@ const isStaffLeaveReadyForDirectorReview = (app: LeaveApplication | any) => {
   const staffRole = String((app?.staff as any)?.role ?? '').toLowerCase();
   if (staffRole !== 'staff' || app?.status !== 'pending' || !app?.created_at) return false;
   return new Date(app.created_at).getTime() <= Date.now() - 24 * 60 * 60 * 1000;
+};
+
+const isUrgentPendingLeave = (app: LeaveApplication | any) => {
+  if (app?.status !== 'pending' || app?.expired_at || !app?.start_date) return false;
+  const start = new Date(`${app.start_date}T00:00:00`);
+  const tomorrow = new Date();
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return start.getTime() <= tomorrow.getTime();
 };
 
 export default function PendingApplications() {
@@ -59,7 +69,7 @@ export default function PendingApplications() {
   };
 
   const canActOnApplication = (app: LeaveApplication) => {
-    if (!canManageLeaveApplications || app.status !== 'pending') return false;
+    if (!canManageLeaveApplications || app.status !== 'pending' || app.expired_at) return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isStaffLeaveReadyForDirectorReview(app);
@@ -73,7 +83,7 @@ export default function PendingApplications() {
       if (isPrincipal && !isViewer) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
       return false;
     })
-    .filter(app => app.status === 'pending')
+    .filter(app => app.status === 'pending' && !app.expired_at)
     .filter(app => {
       if (searchName && !app.staff?.full_name?.toLowerCase().includes(searchName.toLowerCase())) {
         return false;
@@ -257,6 +267,12 @@ export default function PendingApplications() {
                       </CardDescription>
                     </div>
                     <div className="text-right">
+                      {isUrgentPendingLeave(app) && (
+                        <Badge variant="destructive" className="mb-2 gap-1">
+                          <BellRing className="h-3 w-3" />
+                          Urgent
+                        </Badge>
+                      )}
                       <p className="text-sm font-medium">
                         {format(new Date(app.start_date), 'MMM dd')} - {format(new Date(app.end_date), 'MMM dd, yyyy')}
                       </p>
