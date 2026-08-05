@@ -33,10 +33,12 @@ export default function LeaveHistory() {
 
   const filteredApplications = applications.filter(app => {
     if (filter === 'all') return true;
-    return app.status === filter;
+    if (filter === 'expired') return Boolean(app.expired_at);
+    return !app.expired_at && app.status === filter;
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, expiredAt?: string | null) => {
+    if (expiredAt) return <Badge variant="outline" className="border-amber-500 text-amber-700"><Clock className="mr-1 h-3 w-3" />Expired</Badge>;
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-600"><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
@@ -56,7 +58,7 @@ export default function LeaveHistory() {
       end_date: format(new Date(app.end_date), 'dd/MM/yyyy'),
       duration: formatLeaveDuration(app),
       days: app.leave_days,
-      status: app.status,
+      status: app.expired_at ? 'expired' : app.status,
       reason: app.reason || '',
       admin_response: app.admin_response || 'N/A',
       document_status: app.document_url ? 'Attached' : 'Not Attached',
@@ -80,7 +82,7 @@ export default function LeaveHistory() {
         format(new Date(app.end_date), 'dd/MM/yyyy'),
         formatLeaveDuration(app),
         app.leave_days,
-        app.status.charAt(0).toUpperCase() + app.status.slice(1),
+        (app.expired_at ? 'Expired' : app.status.charAt(0).toUpperCase() + app.status.slice(1)),
         app.reason || '-',
         app.document_url ? 'Attached' : 'Not Attached',
         app.admin_response || 'N/A',
@@ -109,6 +111,7 @@ export default function LeaveHistory() {
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
               </SelectContent>
             </Select>
             <DropdownMenu>
@@ -157,7 +160,7 @@ export default function LeaveHistory() {
                       </CardTitle>
                       <CardDescription>{formatLeaveDuration(app)} • {app.leave_days} day{app.leave_days !== 1 ? 's' : ''}</CardDescription>
                     </div>
-                    {getStatusBadge(app.status)}
+                    {getStatusBadge(app.status, app.expired_at)}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -165,6 +168,14 @@ export default function LeaveHistory() {
                     <p className="text-sm font-medium">Reason:</p>
                     <p className="text-sm text-muted-foreground">{app.reason}</p>
                   </div>
+                  {app.expired_at && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-sm font-medium text-amber-800">Automatically expired</p>
+                      <p className="text-sm text-amber-700">
+                        {app.expiry_reason || 'No approval decision was taken before the leave period ended.'}
+                      </p>
+                    </div>
+                  )}
                   {app.admin_response && (
                     <div>
                       <p className="text-sm font-medium">{isPrincipal ? 'Director Response:' : 'Principal Response:'}</p>
