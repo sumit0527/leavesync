@@ -59,7 +59,7 @@ export default function ViewLeave() {
   };
 
   const canActOnApplication = (app: LeaveApplication) => {
-    if (!canManageLeaveApplications || app.status !== 'pending') return false;
+    if (!canManageLeaveApplications || app.status !== 'pending' || app.expired_at) return false;
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return staffRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     if (isMainAdmin) return staffRole === 'principal' || staffRole === 'admin' || isStaffLeaveReadyForDirectorReview(app);
@@ -178,7 +178,8 @@ export default function ViewLeave() {
     return `${actionText} by ${reviewerName}${actionDate ? ` on ${actionDate}` : ''}`;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, expiredAt?: string | null) => {
+    if (expiredAt) return <Badge variant="outline" className="border-amber-500 text-amber-700">Expired</Badge>;
     switch (status) {
       case 'approved':
         return (
@@ -355,7 +356,7 @@ export default function ViewLeave() {
                           {app.leave_days}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
-                          {getStatusBadge(app.status)}
+                          {getStatusBadge(app.status, app.expired_at)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                           {formatReviewSummary(app)}
