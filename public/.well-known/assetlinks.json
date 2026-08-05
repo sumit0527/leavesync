@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "in.gsmleave.www.twa",
+        "sha256_cert_fingerprints": ["6F:39:90:B3:20:F3:CD:1B:39:E6:9B:0A:A2:1B:A4:97:8C:1F:43:27:B6:0B:FB:73:64:E4:1C:50:2F:C2:65:2A"]
+      }
+    }]
