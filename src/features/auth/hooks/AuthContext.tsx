@@ -204,48 +204,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const { data: existingUsername } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', cleanedUsername)
-        .maybeSingle();
+      const checkRegistrationConflict = async () => {
+        const { data, error } = await supabase.rpc('check_registration_conflicts', {
+          p_username: cleanedUsername,
+          p_email: cleanedEmail,
+          p_phone: cleanedPhone,
+        });
 
-      if (existingUsername) {
-        throw new Error('This username is already taken. Please choose another username.');
-      }
-
-      const contactFilters: string[] = [];
-      if (cleanedEmail) contactFilters.push(`email.eq.${cleanedEmail}`);
-      if (cleanedPhone) contactFilters.push(`phone.eq.${cleanedPhone}`);
-
-      if (contactFilters.length > 0) {
-        const { data: duplicateContact, error: duplicateContactError } = await supabase
-          .from('profiles')
-          .select('id, username, email, phone')
-          .or(contactFilters.join(','))
-          .in('approval_status', ['pending', 'approved'])
-          .maybeSingle();
-
-        if (duplicateContactError) {
-          console.error('Duplicate contact check failed:', duplicateContactError);
-          throw new Error('Could not verify duplicate registration details. Please contact administration.');
+        if (error) {
+          console.error('Registration conflict check failed:', error);
+          throw new Error('Could not verify registration details. Please try again or contact administration.');
         }
 
-        if (duplicateContact) {
-          const sameEmail = cleanedEmail && String(duplicateContact.email ?? '').toLowerCase() === cleanedEmail;
-          const samePhone = cleanedPhone && String(duplicateContact.phone ?? '').replace(/\s/g, '') === cleanedPhone;
-          if (sameEmail && samePhone) {
-            throw new Error('An account with the same email and phone number already exists. Please login or contact administration.');
-          }
-          if (sameEmail) {
-            throw new Error('An account with this email already exists. Please login or contact administration.');
-          }
-          if (samePhone) {
-            throw new Error('An account with this phone number already exists. Please login or contact administration.');
-          }
-          throw new Error('An account with the same registration details already exists. Please login or contact administration.');
+        const result = Array.isArray(data) ? data[0] : data;
+        if (result?.conflict_type === 'username') {
+          throw new Error('This username is already taken. Please choose another username.');
         }
-      }
+        const existingState = result?.approval_status === 'pending'
+          ? 'The account is already registered and waiting for approval.'
+          : result?.approval_status === 'approved'
+            ? 'The account is already registered. Please login.'
+            : 'An account with these details already exists. Please contact administration.';
+
+        if (result?.conflict_type === 'email') {
+          throw new Error(`An account with this email already exists. ${existingState}`);
+        }
+        if (result?.conflict_type === 'phone') {
+          throw new Error(`An account with this phone number already exists. ${existingState}`);
+        }
+        if (result?.conflict_type === 'email_phone') {
+          throw new Error(`An account with the same email and phone number already exists. ${existingState}`);
+        }
+      };
+
+      await checkRegistrationConflict();
 
       const emailAddress = toInternalAuthEmail(cleanedUsername);
       const { error } = await supabase.auth.signUp({
@@ -266,7 +258,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Supabase may wrap a database trigger/constraint message as
+        // "Database error saving new user". Re-check the public registration
+        // fields so the user receives the real, helpful reason.
+        try {
+          await checkRegistrationConflict();
+        } catch (conflictError) {
+          throw conflictError;
+        }
+
+        const message = error.message.toLowerCase();
+        if (message.includes('user already registered') || message.includes('already been registered')) {
+          throw new Error('This account is already registered. Please login or contact administration.');
+        }
+        if (message.includes('database error saving new user')) {
+          throw new Error('Registration could not be completed because the account details conflict with an existing record. Please verify the email, phone number and username or contact administration.');
+        }
+        throw error;
+      }
       return { error: null };
     } catch (error) {
       return { error: error as Error };
