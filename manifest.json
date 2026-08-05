@@ -9,14 +9,14 @@
   "icons": [
     {
       "src": "/new-favicon.png",
-      "sizes": "192x192",
-      "type": "image/png",
+      "sizes": "499x508",
+      "type": "image/png"
       "purpose": "any maskable"
     },
     {
       "src": "/new-favicon.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "sizes": "499x508",
+      "type": "image/png"
       "purpose": "any maskable"
     }
   ]
