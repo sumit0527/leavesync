@@ -86,6 +86,9 @@ export interface LeaveApplication {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+  expired_at?: string | null;
+  expiry_reason?: string | null;
+  urgent_notified_at?: string | null;
   staff?: Profile;
   reviewer?: Profile;
   leave_type?: LeaveType;
