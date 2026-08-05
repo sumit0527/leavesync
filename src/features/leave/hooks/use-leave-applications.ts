@@ -56,7 +56,7 @@ export function useLeaveStats(staffId?: string) {
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      let query = supabase.from('leave_applications').select('status');
+      let query = supabase.from('leave_applications').select('status, expired_at');
       if (staffId) query = query.eq('staff_id', staffId);
       const { data } = await query;
       if (data) {
@@ -64,7 +64,7 @@ export function useLeaveStats(staffId?: string) {
           total: data.length,
           approved: data.filter(a => a.status === 'approved').length,
           rejected: data.filter(a => a.status === 'rejected').length,
-          pending: data.filter(a => a.status === 'pending').length,
+          pending: data.filter(a => a.status === 'pending' && !a.expired_at).length,
         });
       }
     } catch (err) {
