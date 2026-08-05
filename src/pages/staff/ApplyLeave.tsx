@@ -285,7 +285,11 @@ export default function ApplyLeave() {
       
       const { error: uploadError } = await supabase.storage
         .from('leave-docs')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -296,7 +300,16 @@ export default function ApplyLeave() {
       return urlData.publicUrl;
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Failed to upload document');
+      const message = error instanceof Error ? error.message : String(error ?? '');
+      if (/row-level security|unauthorized|permission/i.test(message)) {
+        toast.error('Document upload permission is not configured correctly. Please contact administration.');
+      } else if (/payload too large|maximum allowed size|file size/i.test(message)) {
+        toast.error('The document is larger than the 5 MB upload limit.');
+      } else if (/mime|content type|invalid file/i.test(message)) {
+        toast.error('Only PDF, JPG, JPEG and PNG documents are supported.');
+      } else {
+        toast.error(`Failed to upload document${message ? `: ${message}` : ''}`);
+      }
       return null;
     } finally {
       setUploading(false);
