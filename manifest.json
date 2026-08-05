@@ -1,6 +1,8 @@
 {
+  "id": "/",
   "name": "leaveSYNC",
   "short_name": "leaveSYNC",
+  "description": "A secure college leave management portal for staff, principals, and directors.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,13 +11,13 @@
   "icons": [
     {
       "src": "/new-favicon.png",
-      "sizes": "499x508",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
       "src": "/new-favicon.png",
-      "sizes": "499x508",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
