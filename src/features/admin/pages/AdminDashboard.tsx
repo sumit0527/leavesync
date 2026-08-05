@@ -108,6 +108,9 @@ export default function AdminDashboard() {
   }, [fetchCounts, fetchNewStaff]);
 
   const dashboardScopeApplications = applications.filter((app) => {
+    // Expired requests are audit/history records and must not appear in live dashboard counts.
+    if (app.expired_at) return false;
+
     const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
     if (isPrincipal && !isDirectorView) return applicantRole === 'staff' && (app.staff as any)?.college_unit === (profile as any)?.college_unit;
     if (isDirectorView) return true;
@@ -142,6 +145,9 @@ export default function AdminDashboard() {
   const recentApplications = applications
     .filter((app) => {
       const applicantRole = String((app.staff as any)?.role ?? '').toLowerCase();
+
+      // Expired requests remain available in View Leave/history only.
+      if (app.expired_at) return false;
 
       // Principal dashboard must show only staff-side leave work.
       // Principal leave applications belong to Director and should not appear here.
