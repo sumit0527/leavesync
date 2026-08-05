@@ -139,7 +139,7 @@ export default function Analytics() {
         total: primaryRows.length,
         approved: primaryRows.filter((a: any) => a.status === 'approved').length,
         rejected: primaryRows.filter((a: any) => a.status === 'rejected').length,
-        pending: primaryRows.filter((a: any) => a.status === 'pending').length,
+        pending: primaryRows.filter((a: any) => a.status === 'pending' && !a.expired_at).length,
       });
 
       const deptMap = new Map<string, DepartmentStats>();
