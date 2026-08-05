@@ -66,6 +66,10 @@ export default function AllApplications() {
 
 
   const visibleApplications = applications.filter(app => {
+    // Expired applications are kept in View Leave/history for audit,
+    // but are excluded from the operational All Applications page.
+    if (app.expired_at) return false;
+
     const staffRole = String((app.staff as any)?.role ?? '').toLowerCase();
 
     if (isDirectorView) {
