@@ -78,18 +78,22 @@ export default function LeaveTypes() {
     setProcessing(true);
     try {
       if (editingType) {
-        const { error } = await supabase
-          .from('leave_types')
-          .update({
-            name: name.trim(),
-            description: description.trim() || null,
-            annual_allocation: allocation,
-            requires_document: requiresDocument,
-            has_fixed_allocation: hasFixedAllocation
-          })
-          .eq('id', editingType.id);
+        const { data, error } = await supabase.rpc('update_leave_type_safely', {
+          p_leave_type_id: editingType.id,
+          p_name: name.trim(),
+          p_description: description.trim() || null,
+          p_annual_allocation: allocation,
+          p_requires_document: requiresDocument,
+          p_has_fixed_allocation: hasFixedAllocation
+        });
 
         if (error) throw error;
+
+        const updatedType = Array.isArray(data) ? data[0] : data;
+        if (!updatedType?.id) {
+          throw new Error('Leave type update was not confirmed by the database');
+        }
+
         toast.success('Leave type updated successfully');
       } else {
         const { error } = await supabase
@@ -107,7 +111,7 @@ export default function LeaveTypes() {
       }
 
       setDialogOpen(false);
-      refetch();
+      await refetch();
     } catch (error) {
       console.error('Submit error:', error);
       toast.error('Failed to save leave type');
