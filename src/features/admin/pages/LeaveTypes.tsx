@@ -89,12 +89,12 @@ export default function LeaveTypes() {
 
         if (error) throw error;
 
-        const updatedType = Array.isArray(data) ? data[0] : data;
-        if (!updatedType?.id) {
-          throw new Error('Leave type update was not confirmed by the database');
+        const result = Array.isArray(data) ? data[0] : data;
+        if (!result?.success || !result?.leave_type?.id) {
+          throw new Error(result?.message || 'Leave type update was not confirmed by the database');
         }
 
-        toast.success('Leave type updated successfully');
+        toast.success(result.message || 'Leave type updated successfully');
       } else {
         const { error } = await supabase
           .from('leave_types')
@@ -112,9 +112,9 @@ export default function LeaveTypes() {
 
       setDialogOpen(false);
       await refetch();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Submit error:', error);
-      toast.error('Failed to save leave type');
+      toast.error(error?.message || error?.details || 'Failed to save leave type');
     } finally {
       setProcessing(false);
     }
