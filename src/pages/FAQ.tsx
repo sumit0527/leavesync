@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { HelpCircle, Plus, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import StaffLayout from '@/components/layouts/StaffLayout';
@@ -28,7 +29,9 @@ const faqItems = [
 ];
 
 export default function FAQ() {
-  const { profile, isStaff } = useAuth();
+  const { profile } = useAuth();
+  const location = useLocation();
+  const isMyLeavePortal = location.pathname.startsWith('/staff/');
   const [category, setCategory] = useState('all');
   const [questionCategory, setQuestionCategory] = useState('leaves');
   const [question, setQuestion] = useState('');
@@ -48,7 +51,15 @@ export default function FAQ() {
       toast.success('Your question was submitted to the Director');
       setQuestion('');
     } catch (error) {
-      console.error(error); toast.error('Failed to submit your question');
+      console.error(error);
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      if (message.includes('failed to fetch') || message.includes('network')) {
+        toast.error('Could not submit your question because the connection was interrupted. Please check your internet and try again.');
+      } else if (message.includes('permission') || message.includes('policy')) {
+        toast.error('Your account does not have permission to submit this question. Please sign in again or contact the portal administrator.');
+      } else {
+        toast.error('Your question could not be submitted right now. Nothing was lost—please try again.');
+      }
     } finally { setSubmitting(false); }
   };
 
@@ -66,5 +77,8 @@ export default function FAQ() {
       <Button onClick={submitQuestion} disabled={submitting}>{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Submit Question</Button>
     </CardContent></Card>
   </div>;
-  return isStaff ? <StaffLayout>{content}</StaffLayout> : <AdminLayout>{content}</AdminLayout>;
+  // The same FAQ content is shared by both portals, but its layout must follow
+  // the route the user opened. This keeps Principal/UH My Leave FAQ inside
+  // the personal leave portal instead of sending it back to management.
+  return isMyLeavePortal ? <StaffLayout>{content}</StaffLayout> : <AdminLayout>{content}</AdminLayout>;
 }
