@@ -112,7 +112,7 @@ export default function Analytics() {
 
       const { data: allData } = await supabase
         .from('leave_applications')
-        .select('status, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, college_unit, admin_designation, department:departments(name))')
+        .select('status, expired_at, leave_type:leave_types(name), staff:profiles!leave_applications_staff_id_fkey(role, college_unit, admin_designation, department:departments(name))')
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd);
 
@@ -154,7 +154,7 @@ export default function Analytics() {
         dept.total++;
         if (app.status === 'approved') dept.approved++;
         else if (app.status === 'rejected') dept.rejected++;
-        else dept.pending++;
+        else if (app.status === 'pending' && !app.expired_at) dept.pending++;
       });
       setDepartmentStats(Array.from(deptMap.values()));
 
