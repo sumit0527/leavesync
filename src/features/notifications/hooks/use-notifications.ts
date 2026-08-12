@@ -5,15 +5,111 @@ import type { Notification } from '@/types';
 export type NotificationScope = 'own' | 'all' | 'principal' | 'director';
 export type PortalNotification = Notification;
 
+function notificationType(notification: PortalNotification) {
+  return String(notification.type ?? '').toLowerCase().trim();
+}
+
+function isManagementNotification(notification: PortalNotification) {
+  const type = notificationType(notification);
+  const text = `${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+
+  return (
+    type.startsWith('staff_registration_pending:') ||
+    type.startsWith('management_registration_pending:') ||
+    type === 'staff_leave_pending' ||
+    type === 'management_leave_pending' ||
+    type === 'live_leave_urgent' ||
+    type === 'staff_leave_escalated' ||
+    text.includes('registration pending') ||
+    text.includes('leave request pending') ||
+    text.includes('urgent leave') ||
+    text.includes('review required')
+  );
+}
+
+function isPrincipalManagementNotification(notification: PortalNotification) {
+  const type = notificationType(notification);
+  const text = `${notification.title ?? ''} ${notification.message ?? ''}`.toLowerCase();
+
+  return (
+    type.startsWith('staff_registration_pending:') ||
+    type === 'staff_leave_pending' ||
+    type === 'live_leave_urgent' ||
+    type === 'staff_leave_escalated' ||
+    text.includes('staff registration pending') ||
+    text.includes('staff leave request pending') ||
+    text.includes('urgent leave')
+  );
+}
+
+function filterForScope(rows: PortalNotification[], scope: NotificationScope) {
+  if (scope === 'own') return rows.filter((row) => !isManagementNotification(row));
+  if (scope === 'principal') return rows.filter(isPrincipalManagementNotification);
+  if (scope === 'director' || scope === 'all') return rows.filter(isManagementNotification);
+  return rows;
+}
+
+function dedupeNotifications(rows: PortalNotification[]) {
+  const seen = new Set<string>();
+  const result: PortalNotification[] = [];
+
+  for (const row of rows) {
+    const type = notificationType(row);
+    const title = String(row.title ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const message = String(row.message ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const combined = `${type} ${title} ${message}`;
+    const registrationEvent = type.startsWith('staff_registration_pending:') || type.startsWith('management_registration_pending:')
+      ? type
+      : '';
+    const eventKind = combined.includes('urgent') || combined.includes('review required')
+      ? 'urgent'
+      : combined.includes('expired')
+        ? 'expired'
+        : combined.includes('approved')
+          ? 'approved'
+          : combined.includes('rejected')
+            ? 'rejected'
+            : combined.includes('submitted')
+              ? 'submitted'
+              : combined.includes('pending')
+                ? 'pending'
+                : type || title;
+    const key = registrationEvent
+      || (row.related_application_id ? `${row.related_application_id}|${eventKind}` : `${eventKind}|${title}|${message}`);
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(row);
+  }
+
+  return result;
+}
+
+function friendlyNotificationError(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const text = raw.toLowerCase();
+  if (text.includes('failed to fetch') || text.includes('network')) {
+    return 'Notifications could not be loaded because the connection was interrupted. Please check your internet and tap Refresh.';
+  }
+  if (text.includes('jwt') || text.includes('unauthorized') || text.includes('401')) {
+    return 'Your login session has expired. Please sign in again to view notifications.';
+  }
+  if (text.includes('permission') || text.includes('policy') || text.includes('403')) {
+    return 'You do not have permission to view these notifications from this portal.';
+  }
+  return 'Notifications could not be loaded right now. Please tap Refresh. If the problem continues, contact the portal administrator.';
+}
+
 /**
  * Notification inbox rules:
- * - The database creates a notification only for the exact intended recipient.
- * - This hook loads unread notifications only.
- * - Marking a notification as read removes it from the visible inbox immediately.
- * - The notification page is not an approval queue; pending work remains available
- *   in the relevant Registration / View Leave pages even after the alert is read.
+ * - Database rows belong to one exact recipient.
+ * - "own" is the personal My Leave inbox only.
+ * - "principal" is the Principal/UH management inbox for staff work in that unit.
+ * - "director" / "all" are management inboxes for Director/Viewer.
+ * - Duplicate rows are collapsed in the UI as an additional safety net.
+ * - Marking a notification as read removes it immediately.
  */
-export function useNotifications(userId?: string, _scope: NotificationScope = 'own') {
+export function useNotifications(userId?: string, scope: NotificationScope = 'own') {
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,33 +132,26 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
         .eq('user_id', userId)
         .eq('is_read', false)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (error) throw error;
-      setNotifications((data ?? []) as PortalNotification[]);
+      const scopedRows = filterForScope((data ?? []) as PortalNotification[], scope);
+      setNotifications(dedupeNotifications(scopedRows));
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
       if (!silent) setNotifications([]);
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Failed to load notifications.'
-      );
+      setErrorMessage(friendlyNotificationError(error));
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [userId]);
+  }, [scope, userId]);
 
   useEffect(() => {
     if (!userId) return;
 
     fetchNotifications();
 
-    // Realtime insert/update events make new alerts appear without requiring a demo
-    // refresh. A periodic refresh remains as a safe fallback.
-    // Several parts of the portal use this hook at the same time (layout badge +
-    // notifications page). Supabase does not allow adding postgres_changes
-    // callbacks to an already-subscribed channel, so every hook instance must use
-    // its own unique channel name.
-    const channelName = `notifications-${userId}-${Date.now()}-${Math.random()
+    const channelName = `notifications-${userId}-${scope}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2)}`;
 
@@ -93,12 +182,11 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
       window.removeEventListener('focus', refreshOnFocus);
       supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, userId]);
+  }, [fetchNotifications, scope, userId]);
 
   const markAsRead = async (notificationId: string) => {
     if (!userId) return;
 
-    // Optimistic removal keeps the inbox calm and uncluttered.
     const previous = notifications;
     setNotifications((rows) => rows.filter((row) => row.id !== notificationId));
 
@@ -111,7 +199,7 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
     if (error) {
       console.error('Failed to mark notification as read:', error);
       setNotifications(previous);
-      throw error;
+      throw new Error('Could not mark this notification as read. Please try again.');
     }
   };
 
@@ -132,7 +220,7 @@ export function useNotifications(userId?: string, _scope: NotificationScope = 'o
     if (error) {
       console.error('Failed to mark all notifications as read:', error);
       setNotifications(previous);
-      throw error;
+      throw new Error('Could not mark the notifications as read. Please try again.');
     }
   };
 
