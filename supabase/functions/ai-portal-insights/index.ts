@@ -35,6 +35,7 @@ type LeaveRecord = {
   decision_response: string;
   document_attached: boolean;
   duration: string;
+  expired: boolean;
 };
 
 type AllocationRecord = {
@@ -246,7 +247,7 @@ function buildContext(data: { profiles: any[]; leaves: any[]; allocations: any[]
       unit_key: unitKey(staff.college_unit),
       department: clean(staff.department?.name),
       leave_type: clean(leave?.leave_type?.name),
-      status: statusKey(leave?.status),
+      status: leave?.expired_at ? 'expired' : statusKey(leave?.status),
       days: Number(leave?.leave_days ?? 0),
       start_date: dateOnly(leave?.start_date),
       end_date: dateOnly(leave?.end_date),
@@ -259,6 +260,7 @@ function buildContext(data: { profiles: any[]; leaves: any[]; allocations: any[]
       duration: leave?.leave_duration === 'half_day'
         ? `Half Day (${leave?.half_day_period === 'second_half' ? 'Second Half' : 'First Half'})`
         : 'Full Day',
+      expired: Boolean(leave?.expired_at),
     };
   });
 
@@ -279,12 +281,18 @@ function buildContext(data: { profiles: any[]; leaves: any[]; allocations: any[]
   });
 
   const departments: DepartmentRecord[] = data.departments.map((d) => ({ name: clean(d.name), unit: unitName(d.college_unit), unit_key: unitKey(d.college_unit) }));
-  const leaveTypes = data.leaveTypes.map((t) => ({ name: clean(t.name), default_days: Number(t.default_days ?? t.max_days ?? 0), active: t.is_active !== false }));
+  const leaveTypes = data.leaveTypes.map((t) => ({
+    name: clean(t.name),
+    annual_allocation: Number(t.annual_allocation ?? 0),
+    has_fixed_allocation: t.has_fixed_allocation !== false,
+    requires_document: Boolean(t.requires_document),
+    active: t.is_active !== false,
+  }));
   const holidays = data.holidays.map((h) => ({ name: clean(h.name), date: dateOnly(h.date), unit: unitName(h.college_unit), unit_key: unitKey(h.college_unit) }));
   const notifications = data.notifications.map((n) => ({ title: clean(n.title), message: clean(n.message), read: Boolean(n.is_read), created_at: dateTime(n.created_at) })).slice(0, 80);
 
   const approvedLeaves = leaveApplications.filter((l) => l.status === 'approved');
-  const pendingLeaves = leaveApplications.filter((l) => l.status === 'pending');
+  const pendingLeaves = leaveApplications.filter((l) => l.status === 'pending' && !l.expired);
   const rejectedLeaves = leaveApplications.filter((l) => l.status === 'rejected');
   const pending24h = pendingLeaves.filter((l) => l.role_key === 'staff' && l.age_hours >= 24);
   const today = range('today');
@@ -359,6 +367,12 @@ function lastUserQuestion(history: ChatHistoryMessage[]) {
   return [...history].reverse().find((m) => m.role === 'user' && m.text)?.text ?? '';
 }
 
+function isPortalConversationRelated(question: string, history: ChatHistoryMessage[]) {
+  if (isPortalRelated(question)) return true;
+  const previousQuestion = lastUserQuestion(history);
+  return Boolean(previousQuestion && isPortalRelated(previousQuestion));
+}
+
 function resolveFollowUp(question: string, history: ChatHistoryMessage[]) {
   const q = norm(question);
   const last = lastUserQuestion(history);
@@ -388,6 +402,7 @@ function parseFilters(question: string, history: ChatHistoryMessage[], context: 
   if (/pending|waiting|not approved/.test(q)) statuses.push('pending');
   if (/approved|accepted|active/.test(q)) statuses.push('approved');
   if (/rejected|declined/.test(q)) statuses.push('rejected');
+  if (/expired|expiry/.test(q)) statuses.push('expired');
   if (/past|inactive|old/.test(q)) statuses.push('past');
 
   const leaveTypes = context.leaveTypes.map((t: any) => norm(t.name)).filter((name: string) => name && q.includes(name));
@@ -766,7 +781,7 @@ function exactAnswer(context: PortalContext, question: string, history: ChatHist
 async function callGeminiText(prompt: string, maxOutputTokens = 700) {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('FREE_AI_API_KEY');
   if (!apiKey) return null;
-  const model = Deno.env.get('FREE_AI_MODEL') || 'gemini-1.5-flash-latest';
+  const model = Deno.env.get('FREE_AI_MODEL') || 'gemini-3.6-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -784,15 +799,67 @@ async function callGeminiText(prompt: string, maxOutputTokens = 700) {
   return data?.candidates?.[0]?.content?.parts?.map((part: any) => part.text).join('\n').trim() || null;
 }
 
-async function polishAnswer(question: string, exact: string) {
-  const prompt = `Rewrite this LeaveSync portal answer in simple Director-friendly language.\nDo not change any number, name, status, unit, date, or table line.\nDo not add new data.\nKeep it concise.\n\nQuestion: ${question}\n\nExact answer:\n${exact}`;
-  return (await callGeminiText(prompt, 700)) || exact;
+function compactGrounding(context: PortalContext) {
+  return {
+    generated_at: context.generated_at,
+    analytics: context.analytics,
+    users: context.users.slice(0, 160),
+    leave_applications: context.leaveApplications.slice(0, 220),
+    current_year_allocations: context.allocations.slice(0, 220),
+    departments: context.departments,
+    leave_types: context.leaveTypes,
+    holidays: context.holidays.slice(0, 120),
+    recent_notifications: context.notifications.slice(0, 40),
+  };
+}
+
+async function answerNaturally(
+  context: PortalContext,
+  question: string,
+  history: ChatHistoryMessage[],
+  exact: string,
+) {
+  const recentConversation = history
+    .slice(-8)
+    .map((message) => `${message.role === 'assistant' ? 'Assistant' : 'User'}: ${clean(message.text)}`)
+    .join('\n');
+
+  const grounding = JSON.stringify(compactGrounding(context));
+  const prompt = `You are LeaveSync AI, a professional conversational assistant inside a college leave-management portal.
+
+Your job is to answer the Director/Viewer naturally like a capable LLM while remaining strictly grounded in the supplied LeaveSync data.
+
+STRICT RULES:
+1. Treat PORTAL DATA and EXACT ENGINE RESULT as the only source of truth for live LeaveSync facts.
+2. Never invent a person, count, leave status, balance, department, date, notification, approval, or policy.
+3. A leave whose expired=true is NOT pending. Never include expired leave in pending counts or pending lists.
+4. If the exact engine result directly answers the question, preserve its facts and improve only clarity/naturalness.
+5. If the user's wording is conversational, indirect, or a follow-up, infer their intent from RECENT CHAT and answer naturally from PORTAL DATA.
+6. If the requested live fact is not present in PORTAL DATA, say that you cannot confirm it from the available portal data.
+7. Do not expose email addresses, phone numbers, addresses, passwords, tokens, private medical details, detailed leave reasons, or document URLs.
+8. You are read-only. Do not claim to approve, reject, edit, delete, send, or change records.
+9. Keep answers concise but useful. Use bullets only when they improve readability.
+10. Do not talk about database tables, SQL, fetching, or internal implementation unless the user explicitly asks a technical question.
+
+RECENT CHAT:
+${recentConversation || 'No previous chat.'}
+
+USER QUESTION:
+${question}
+
+EXACT ENGINE RESULT:
+${exact}
+
+PORTAL DATA:
+${grounding}`;
+
+  return (await callGeminiText(prompt, 1200)) || exact;
 }
 
 async function transcribeWithGemini(audioBase64: string, mimeType: string) {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('FREE_AI_API_KEY');
   if (!apiKey) throw new Error('Voice question needs GEMINI_API_KEY in Supabase secrets.');
-  const model = Deno.env.get('FREE_AI_MODEL') || 'gemini-1.5-flash-latest';
+  const model = Deno.env.get('FREE_AI_MODEL') || 'gemini-3.6-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -859,7 +926,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isPortalRelated(question)) {
+    if (!isPortalConversationRelated(question, history)) {
       return jsonResponse({
         answer: 'I can answer only LeaveSync portal questions, such as staff, Principal/UH, units, departments, leave applications, balances, calendar, notifications, and analytics reports.',
         transcript: body.audioBase64 ? question : undefined,
@@ -870,10 +937,10 @@ Deno.serve(async (req) => {
 
     const [profilesResult, leavesResult, allocationsResult, departmentsResult, leaveTypesResult, holidaysResult, notificationsResult] = await Promise.all([
       admin.from('profiles').select('id, full_name, role, approval_status, college_unit, admin_designation, employment_status, active, department:departments(name)').limit(5000),
-      admin.from('leave_applications').select('id, status, leave_days, start_date, end_date, created_at, reviewed_at, admin_response, document_url, leave_duration, half_day_period, staff:profiles!leave_applications_staff_id_fkey(id, full_name, role, approval_status, college_unit, admin_designation, employment_status, department:departments(name)), reviewer:profiles!leave_applications_reviewed_by_fkey(full_name), leave_type:leave_types(name)').order('created_at', { ascending: false }).limit(5000),
+      admin.from('leave_applications').select('id, status, expired_at, leave_days, start_date, end_date, created_at, reviewed_at, admin_response, document_url, leave_duration, half_day_period, staff:profiles!leave_applications_staff_id_fkey(id, full_name, role, approval_status, college_unit, admin_designation, employment_status, department:departments(name)), reviewer:profiles!leave_applications_reviewed_by_fkey(full_name), leave_type:leave_types(name)').order('created_at', { ascending: false }).limit(5000),
       admin.from('staff_leave_allocations').select('total_allocated, used, remaining, year, staff:profiles(id, full_name, role, college_unit, admin_designation, employment_status), leave_type:leave_types(name)').limit(8000),
       admin.from('departments').select('id, name, college_unit').order('college_unit', { ascending: true }).limit(1500),
-      admin.from('leave_types').select('id, name, default_days, max_days, is_active').limit(500),
+      admin.from('leave_types').select('id, name, annual_allocation, has_fixed_allocation, requires_document, is_active').limit(500),
       admin.from('holidays').select('id, name, date, college_unit').order('date', { ascending: true }).limit(1000),
       admin.from('notifications').select('id, title, message, is_read, created_at').order('created_at', { ascending: false }).limit(500),
     ]);
@@ -896,13 +963,14 @@ Deno.serve(async (req) => {
       notifications: notificationsResult.error ? [] : notificationsResult.data ?? [],
     });
 
-    const answer = exactAnswer(context, question, history);
+    const exact = exactAnswer(context, question, history);
+    const answer = await answerNaturally(context, question, history, exact);
 
     return jsonResponse({
       answer,
       transcript: body.audioBase64 ? question : undefined,
       generatedAt: new Date().toISOString(),
-      mode: 'deterministic_view_only_query_engine',
+      mode: answer === exact ? 'grounded_fallback' : 'grounded_conversational_ai',
     });
   } catch (error) {
     console.error('ai-portal-insights failed:', error);
