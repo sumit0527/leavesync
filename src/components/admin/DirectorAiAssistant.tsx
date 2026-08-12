@@ -25,7 +25,7 @@ type AiResponse = {
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
-  text: 'Hi, ask me about LeaveSync portal data.',
+  text: 'Hi! Ask me naturally about LeaveSync—staff, leave applications, balances, units, departments, notifications, or analytics. I’ll answer from the live portal data I’m allowed to view.',
 };
 
 const QUICK_INSIGHTS = [
@@ -148,9 +148,16 @@ export default function DirectorAiAssistant() {
       const result = await askPortalAi({ question: cleanQuestion }, historySnapshot);
       handleAiResult(result, cleanQuestion);
     } catch (error: any) {
-      appendAssistant(
-        `I could not answer from portal data right now. ${error?.message ?? 'Please try again.'}\n\nCheck that ai-portal-insights is deployed and GEMINI_API_KEY is saved in Supabase secrets.`,
-      );
+      const detail = String(error?.message ?? '').toLowerCase();
+      if (detail.includes('failed to fetch') || detail.includes('network')) {
+        appendAssistant('I could not reach LeaveSync AI because the connection was interrupted. Please check your internet and try the question again.');
+      } else if (detail.includes('401') || detail.includes('jwt') || detail.includes('unauthorized')) {
+        appendAssistant('Your login session appears to have expired. Please sign in again, then reopen LeaveSync AI.');
+      } else if (detail.includes('429') || detail.includes('resource_exhausted') || detail.includes('rate')) {
+        appendAssistant('The free AI service is temporarily busy or has reached a short-term usage limit. Your portal data is safe—please try again after a little while.');
+      } else {
+        appendAssistant('I could not prepare a reliable answer right now, so I did not guess. Please try again. If this continues, the portal administrator can check the ai-portal-insights function logs.');
+      }
     } finally {
       setBusy(false);
     }
@@ -190,7 +197,12 @@ export default function DirectorAiAssistant() {
           const result = await askPortalAi({ audioBase64, audioMimeType: mimeType }, messagesRef.current);
           handleAiResult(result);
         } catch (error: any) {
-          appendAssistant(`Voice question failed. ${error?.message ?? 'Please type your question or try again.'}`);
+          const detail = String(error?.message ?? '').toLowerCase();
+          if (detail.includes('permission')) {
+            appendAssistant('Voice input could not be used because microphone permission is blocked. Please allow microphone access or type your question.');
+          } else {
+            appendAssistant('I could not process that voice question reliably. Please try recording again or type the question.');
+          }
         } finally {
           setBusy(false);
         }
