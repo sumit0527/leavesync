@@ -246,3 +246,6 @@ Offline leave data can be imported later using the verified college sheet. See:
 ```text
 docs/OFFLINE_LEAVE_IMPORT_GUIDE.md
 ```
+
+## 👤 Author
+**Sumit Patil**
